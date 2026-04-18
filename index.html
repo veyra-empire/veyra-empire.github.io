@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VEYRA EMPIRE &mdash; Script Archive</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="overlay">
+    <div class="panel">
+
+      <section id="state-loading">
+        <h1>VEYRA EMPIRE</h1>
+        <p class="subtitle">Script Archive</p>
+        <p class="loading-msg">Loading&hellip;</p>
+      </section>
+
+      <section id="state-oauth" hidden>
+        <h1>VEYRA EMPIRE</h1>
+        <p class="subtitle">Script Archive</p>
+        <p style="text-align:center; color: var(--muted); margin: 18px 0 26px; font-size: 0.95rem; line-height: 1.5;">
+          Sign in with Discord to access your scripts.<br>
+          We verify your guild membership and match you to the registry &mdash; no passwords handled here.
+        </p>
+        <div style="text-align:center;">
+          <a id="signin-btn" class="install-btn" style="padding: 14px 32px; font-size: 1rem;"
+             href="#" rel="noopener">Sign in with Discord</a>
+        </div>
+        <p class="footer-note" style="margin-top: 26px;">Not a member? Join the VEYRA EMPIRE Discord first.</p>
+        <p class="tampermonkey-hint">
+          Don't have Tampermonkey yet? Install it here:
+          <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">tampermonkey.net</a>
+        </p>
+      </section>
+
+      <section id="state-denied" hidden>
+        <div class="denied-icon">&#x26D4;</div>
+        <p id="denied-msg" class="denied-msg"></p>
+        <div style="text-align:center;">
+          <a class="back-link" href="./" id="denied-back">&larr; Back to sign-in</a>
+        </div>
+      </section>
+
+      <section id="state-scripts" hidden>
+        <div class="greeting">
+          <div>
+            <h2>Welcome, <span id="user-name"></span></h2>
+            <div class="email-line" id="user-email"></div>
+          </div>
+          <div id="user-tier" class="tier-badge"></div>
+        </div>
+
+        <div id="empty-state" class="empty-state" hidden>No scripts available at your tier yet.</div>
+
+        <div id="scripts-controls" hidden>
+          <div class="sort-bar" id="sortBar">
+            <span class="label">Sort</span>
+            <button class="sort-btn active" data-sort="name">Name</button>
+            <button class="sort-btn"        data-sort="author">Author</button>
+            <button class="sort-btn"        data-sort="tier">Tier</button>
+            <button class="sort-btn sort-dir" id="sortDir" title="Toggle ascending / descending" aria-label="Toggle direction">&#x25B2;</button>
+          </div>
+          <div class="scripts-grid" id="scriptsGrid"></div>
+        </div>
+
+        <div style="text-align:center;">
+          <a class="back-link" href="#" id="signout-btn">&larr; Sign out / switch account</a>
+        </div>
+        <p class="tampermonkey-hint">
+          Clicking Install opens Tampermonkey's install dialog. If nothing happens, make sure Tampermonkey is installed: <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">tampermonkey.net</a>
+        </p>
+      </section>
+
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
