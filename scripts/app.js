@@ -2,7 +2,7 @@
   'use strict';
 
   // ─── CONFIG ──────────────────────────────────────────────────────────────
-  // Apps Script /exec URL (not secret — baked into every installed script's
+  // Apps Script /exec URL (not secret - baked into every installed script's
   // @updateURL). Only used for JSONP data calls + install button URLs.
   var PROXY_URL = 'https://script.google.com/macros/s/AKfycbzUHg1z18WmWFSyEsZStaK2kmax2JXnPzK4LrTyEitSFVBQ2u2vfFeO6wZhjWx58EJZ7w/exec';
 
@@ -136,6 +136,9 @@
         desc.className = 'script-desc';
         desc.textContent = s.description || '';
 
+        var actions = document.createElement('div');
+        actions.className = 'script-actions';
+
         var btn = document.createElement('a');
         btn.className = 'install-btn';
         btn.target = '_blank';
@@ -144,11 +147,22 @@
         btn.href = PROXY_URL + '/' + encodeURIComponent(s.id) + '.user.js' +
                    '?s=' + encodeURIComponent(s.id) +
                    '&session=' + encodeURIComponent(sid);
+        actions.appendChild(btn);
+
+        if (s.threadUrl) {
+          var threadLink = document.createElement('a');
+          threadLink.className = 'thread-link';
+          threadLink.target = '_blank';
+          threadLink.rel = 'noopener';
+          threadLink.href = s.threadUrl;
+          threadLink.textContent = 'Discussion \u2192';
+          actions.appendChild(threadLink);
+        }
 
         card.appendChild(h3);
         card.appendChild(meta);
         card.appendChild(desc);
-        card.appendChild(btn);
+        card.appendChild(actions);
         elGrid.appendChild(card);
       });
       applySort();
