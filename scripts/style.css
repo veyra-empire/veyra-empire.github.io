@@ -313,6 +313,21 @@ button:hover, .install-btn:hover {
 .tampermonkey-hint a,
 .footer-note a { color: var(--accent); }
 
+.trust-notice {
+  margin: 0 0 18px;
+  padding: 10px 0;
+  border-top: 1px dotted var(--panel-border);
+  border-bottom: 1px dotted var(--panel-border);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--muted);
+  text-align: center;
+}
+.trust-notice strong {
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+
 .loading-msg {
   text-align: center;
   color: var(--muted);
