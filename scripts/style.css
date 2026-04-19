@@ -167,7 +167,7 @@ button:hover, .install-btn:hover {
 }
 .tier-probationary { color: #9aa4af; }
 .tier-member       { color: #d7dbe0; }
-.tier-trusted      { color: #f2c072; }
+.tier-tester       { color: #f2c072; }
 .tier-owner        { color: #e87070; }
 
 .scripts-grid {

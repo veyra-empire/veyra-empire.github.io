@@ -57,7 +57,7 @@ see for more info). The data lives in the manifest, not in this repo.
        "name": "Havoc Autobattle",
        "author": "lmv",
        "description": "...",
-       "minTier": "trusted",
+       "minTier": "tester",
        "threadUrl": "https://discord.com/channels/<guild-id>/<thread-id>"
      }
    }

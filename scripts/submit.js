@@ -162,7 +162,7 @@
     if (!fieldDescription.value && tags.description) fieldDescription.value = tags.description;
     // If script header has a @veyra-min-tier, honor it
     if (tags['veyra-min-tier']) {
-      var allowed = ['probationary', 'member', 'trusted'];
+      var allowed = ['probationary', 'member', 'tester'];
       if (allowed.indexOf(tags['veyra-min-tier']) >= 0) {
         fieldMinTier.value = tags['veyra-min-tier'];
       }
@@ -310,7 +310,7 @@
     'not-owner':          "You don't own this script. Only the original submitter (or lmv) can update it.",
     'invalid-script':     "The script source doesn't look like a valid userscript. Make sure it has a // ==UserScript== block with at least @name and @version.",
     'invalid-id':         'Script ID must be lowercase letters, digits, and hyphens only (2-49 chars).',
-    'invalid-min-tier':   'Min tier must be probationary, member, or trusted.',
+    'invalid-min-tier':   'Min tier must be probationary, member, or tester.',
     'invalid-thread-url': 'Thread URL must start with https://',
     'too-large':          'Script exceeds the 3 MB limit.',
     'missing-name':       'Please provide your name for the deletion request.',

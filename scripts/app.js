@@ -10,7 +10,7 @@
   var CLIENT_ID    = '1494917616878227597';
   var REDIRECT_URI = 'https://veyra-empire.github.io/scripts/';
 
-  var TIER_ORDER = ['probationary', 'member', 'trusted', 'owner'];
+  var TIER_ORDER = ['probationary', 'member', 'tester', 'owner'];
   // veyra_session lives in localStorage so install.html (a separate tab)
   // can read it when the user clicks an Install button.
   var CACHE_KEY  = 'veyra_session';
