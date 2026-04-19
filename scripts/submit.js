@@ -66,8 +66,9 @@
   var fieldScreenshot, screenshotPreview, screenshotPreviewImg, screenshotClearBtn;
   var fieldSubmitterName, fieldReason, fieldDeleteAttest;
   var deleteNameRow, deleteReasonRow, deleteAttestRow;
+  var fieldVersion, fieldVersionBtn, fieldPurpose;
   var submitBtn, formError, sourceHint, modeUpdateLabel, modeDeleteLabel;
-  var submitOnlyRows, deleteOnlyRows;
+  var submitOnlyRows, deleteOnlyRows, updateOnlyRows;
 
   function bindRefs() {
     form             = document.getElementById('submit-form');
@@ -97,11 +98,15 @@
     deleteNameRow      = document.getElementById('delete-name-row');
     deleteReasonRow    = document.getElementById('delete-reason-row');
     deleteAttestRow    = document.getElementById('delete-attest-row');
+    fieldVersion     = document.getElementById('field-version');
+    fieldVersionBtn  = document.getElementById('field-version-btn');
+    fieldPurpose     = document.getElementById('field-purpose');
     submitBtn        = document.getElementById('submit-btn');
     formError        = document.getElementById('form-error');
     sourceHint       = document.getElementById('source-hint');
     submitOnlyRows   = Array.prototype.slice.call(form.querySelectorAll('.submit-only'));
     deleteOnlyRows   = Array.prototype.slice.call(form.querySelectorAll('.delete-only'));
+    updateOnlyRows   = Array.prototype.slice.call(form.querySelectorAll('.update-only'));
   }
 
   // ─── Mode switching ───────────────────────────────────────────────────────
@@ -116,11 +121,14 @@
     idUpdateRow.hidden = mode !== 'update';
     idDeleteRow.hidden = mode !== 'delete';
 
-    // Show submit-only rows (source/screenshot/etc) only for new/update; show
-    // delete-only rows (name/reason/delete-attest) only for delete.
+    // Visibility by mode:
+    // - submit-only (source/screenshot/attest): shown for new+update, hidden for delete
+    // - delete-only (name/reason/delete-attest): shown for delete only
+    // - update-only (version/purpose): shown for update only
     var showSubmit = mode !== 'delete';
     submitOnlyRows.forEach(function(el) { el.hidden = !showSubmit; });
     deleteOnlyRows.forEach(function(el) { el.hidden = showSubmit; });
+    updateOnlyRows.forEach(function(el) { el.hidden = mode !== 'update'; });
 
     if (mode === 'update') prefillFromSelectedUpdate();
     updateSubmitBtnLabel();
@@ -164,7 +172,29 @@
     if (currentMode() === 'new' && !idNew.value && tags.name) {
       idNew.value = slugify(tags.name);
     }
+    // Update mode: pre-bake the version field (locked) whenever the locked state is on.
+    // Don't overwrite a user's in-progress edit.
+    if (currentMode() === 'update' && tags.version && fieldVersion.readOnly) {
+      fieldVersion.value = tags.version;
+    }
     updateSubmitEnabled();
+  }
+
+  // Version field: locked by default, Edit button unlocks, Confirm re-locks.
+  function wireVersionToggle() {
+    fieldVersionBtn.addEventListener('click', function() {
+      if (fieldVersion.readOnly) {
+        fieldVersion.readOnly = false;
+        fieldVersion.focus();
+        fieldVersion.select();
+        fieldVersionBtn.textContent = 'Confirm';
+        fieldVersionBtn.classList.add('version-btn-confirm');
+      } else {
+        fieldVersion.readOnly = true;
+        fieldVersionBtn.textContent = 'Edit';
+        fieldVersionBtn.classList.remove('version-btn-confirm');
+      }
+    });
   }
 
   function slugify(s) {
@@ -498,6 +528,13 @@
       screenshot:  pendingScreenshot              || undefined
     };
 
+    if (mode === 'update') {
+      var ver = fieldVersion.value.trim();
+      if (ver) body.version = ver;
+      var purpose = fieldPurpose.value.trim();
+      if (purpose) body.purpose = purpose;
+    }
+
     show('state-submitting');
     sendSubmit(body);
   }
@@ -638,6 +675,7 @@
     fieldSource.addEventListener('blur', autoFillFromSource);
     wireDragDrop();
     wireScreenshot();
+    wireVersionToggle();
     updateSizeHint();
 
     // Enablement watchers

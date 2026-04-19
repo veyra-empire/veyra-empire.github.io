@@ -136,6 +136,22 @@
             <p class="form-hint">lmv may change this during review.</p>
           </div>
 
+          <div class="form-row update-only" id="update-version-row" hidden>
+            <label class="form-label" for="field-version">Version</label>
+            <div class="version-row">
+              <input type="text" id="field-version" class="form-input" readonly>
+              <button type="button" id="field-version-btn" class="version-btn">Edit</button>
+            </div>
+            <p class="form-hint">Pre-baked from the pasted script's <code>@version</code>. Tampermonkey compares this to decide whether to auto-update installed copies, so bump it if your change should propagate.</p>
+          </div>
+
+          <div class="form-row update-only" id="update-purpose-row" hidden>
+            <label class="form-label" for="field-purpose">What's new <span class="form-optional">(optional)</span></label>
+            <textarea id="field-purpose" class="form-input" rows="3" maxlength="2000"
+                      placeholder="Short description of the change. Appears in the Discord announcement."></textarea>
+            <p class="form-hint">Include in the Discord announcement if set.</p>
+          </div>
+
           <div class="form-row submit-only">
             <label class="form-label" for="field-thread">Discussion thread <span class="form-optional">(optional)</span></label>
             <input type="url" id="field-thread" class="form-input"
