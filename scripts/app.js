@@ -155,7 +155,10 @@
         btn.href = 'install.html?s=' + encodeURIComponent(s.id);
         actions.appendChild(btn);
 
-        if (s.threadUrl) {
+        // Only render the link if the URL is HTTPS - defense-in-depth against
+        // a future compromised manifest entry with a `javascript:` href that
+        // could XSS the Pages origin and exfiltrate the session from localStorage.
+        if (s.threadUrl && /^https:\/\//i.test(s.threadUrl)) {
           var threadLink = document.createElement('a');
           threadLink.className = 'thread-link';
           threadLink.target = '_blank';
