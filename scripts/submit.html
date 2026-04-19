@@ -119,6 +119,17 @@
           </div>
 
           <div class="form-row">
+            <label class="form-label" for="field-screenshot">Screenshot <span class="form-optional">(optional)</span></label>
+            <input type="file" id="field-screenshot" class="form-input form-file"
+                   accept="image/png,image/jpeg,image/webp">
+            <div id="screenshot-preview" class="screenshot-preview" hidden>
+              <img id="screenshot-preview-img" alt="Screenshot preview">
+              <button type="button" id="screenshot-clear" class="screenshot-clear">Remove</button>
+            </div>
+            <p class="form-hint">PNG, JPEG, or WebP. Max 2 MB. Displays as an expandable thumbnail on the script card.</p>
+          </div>
+
+          <div class="form-row">
             <label class="form-label" for="field-source">Script source</label>
             <textarea id="field-source" class="form-input form-source"
                       rows="10" spellcheck="false" required

@@ -5,6 +5,8 @@
   var PROXY_URL = 'https://script.google.com/macros/s/AKfycbzUHg1z18WmWFSyEsZStaK2kmax2JXnPzK4LrTyEitSFVBQ2u2vfFeO6wZhjWx58EJZ7w/exec';
   var CACHE_KEY = 'veyra_session';
   var MAX_BYTES = 3 * 1024 * 1024;
+  var MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
+  var VALID_SCREENSHOT_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
 
   // ─── JSONP helper (GET endpoints only) ────────────────────────────────────
   function jsonp(url) {
@@ -57,8 +59,10 @@
   // ─── DOM refs ─────────────────────────────────────────────────────────────
   var session = null;
   var ownedScripts = [];  // [{id, name, description, minTier, threadUrl}, ...]
+  var pendingScreenshot = null;  // { mimeType, base64 } or null
   var form, modeInputs, idNewRow, idUpdateRow, idNew, idUpdate;
   var fieldName, fieldAuthor, fieldDescription, fieldMinTier, fieldThread, fieldSource, fieldAttest;
+  var fieldScreenshot, screenshotPreview, screenshotPreviewImg, screenshotClearBtn;
   var submitBtn, formError, sourceHint, modeUpdateLabel;
 
   function bindRefs() {
@@ -76,6 +80,10 @@
     fieldThread      = document.getElementById('field-thread');
     fieldSource      = document.getElementById('field-source');
     fieldAttest      = document.getElementById('field-attest');
+    fieldScreenshot       = document.getElementById('field-screenshot');
+    screenshotPreview     = document.getElementById('screenshot-preview');
+    screenshotPreviewImg  = document.getElementById('screenshot-preview-img');
+    screenshotClearBtn    = document.getElementById('screenshot-clear');
     submitBtn        = document.getElementById('submit-btn');
     formError        = document.getElementById('form-error');
     sourceHint       = document.getElementById('source-hint');
@@ -175,6 +183,45 @@
     sourceHint.style.color = bytes > MAX_BYTES ? 'var(--danger)' : '';
   }
 
+  // ─── Screenshot upload ───────────────────────────────────────────────────
+  function wireScreenshot() {
+    fieldScreenshot.addEventListener('change', function() {
+      var file = fieldScreenshot.files && fieldScreenshot.files[0];
+      if (!file) { clearScreenshot(); return; }
+      if (VALID_SCREENSHOT_MIMES.indexOf(file.type) < 0) {
+        toast('error', 'Screenshot must be PNG, JPEG, or WebP.');
+        fieldScreenshot.value = '';
+        return;
+      }
+      if (file.size > MAX_SCREENSHOT_BYTES) {
+        toast('error', 'Screenshot is larger than the 2 MB limit.');
+        fieldScreenshot.value = '';
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function() {
+        // reader.result is a data URL: "data:image/png;base64,<payload>"
+        var dataUrl = String(reader.result || '');
+        var commaIdx = dataUrl.indexOf(',');
+        var base64 = commaIdx >= 0 ? dataUrl.substring(commaIdx + 1) : '';
+        pendingScreenshot = { mimeType: file.type, base64: base64 };
+        screenshotPreviewImg.src = dataUrl;
+        screenshotPreview.hidden = false;
+      };
+      reader.onerror = function() { toast('error', 'Failed to read screenshot file.'); };
+      reader.readAsDataURL(file);
+    });
+
+    screenshotClearBtn.addEventListener('click', clearScreenshot);
+  }
+
+  function clearScreenshot() {
+    pendingScreenshot = null;
+    fieldScreenshot.value = '';
+    screenshotPreview.hidden = true;
+    screenshotPreviewImg.removeAttribute('src');
+  }
+
   // ─── Submit enablement ────────────────────────────────────────────────────
   function updateSubmitEnabled() {
     var mode = currentMode();
@@ -198,6 +245,10 @@
     'invalid-min-tier':   'Min tier must be probationary, member, or trusted.',
     'invalid-thread-url': 'Thread URL must start with https://',
     'too-large':          'Script exceeds the 3 MB limit.',
+    'invalid-screenshot':        'Screenshot file is invalid or empty.',
+    'invalid-screenshot-type':   'Screenshot must be PNG, JPEG, or WebP.',
+    'screenshot-too-large':      'Screenshot exceeds the 2 MB limit.',
+    'screenshot-upload-failed':  'Uploading the screenshot to GitHub failed. Try again in a few minutes.',
     'github-error':       'GitHub is having trouble right now. Try again in a few minutes.',
     'server-error':       'Something went wrong on the server. Contact an officer.',
     'unknown-api':        'Server received an unknown request. Contact an officer.',
@@ -381,7 +432,8 @@
       description: fieldDescription.value.trim() || undefined,
       minTier:     fieldMinTier.value,
       threadUrl:   fieldThread.value.trim()      || undefined,
-      source:      source
+      source:      source,
+      screenshot:  pendingScreenshot              || undefined
     };
 
     show('state-submitting');
@@ -506,6 +558,7 @@
     });
     fieldSource.addEventListener('blur', autoFillFromSource);
     wireDragDrop();
+    wireScreenshot();
     updateSizeHint();
 
     // Enablement watchers

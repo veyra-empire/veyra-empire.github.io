@@ -140,6 +140,22 @@
         desc.className = 'script-desc';
         desc.textContent = s.description || '';
 
+        // Optional screenshot thumbnail. Click expands to a full-size lightbox.
+        // Validate origin as an extra defense - we expect public raw.githubusercontent.com.
+        var thumb = null;
+        if (s.screenshotUrl && /^https:\/\/raw\.githubusercontent\.com\//i.test(s.screenshotUrl)) {
+          thumb = document.createElement('button');
+          thumb.type = 'button';
+          thumb.className = 'script-thumb';
+          thumb.setAttribute('aria-label', 'Show screenshot for ' + (s.name || s.id));
+          var img = document.createElement('img');
+          img.src = s.screenshotUrl;
+          img.alt = '';
+          img.loading = 'lazy';
+          thumb.appendChild(img);
+          thumb.addEventListener('click', function() { openLightbox(s.screenshotUrl, s.name || s.id); });
+        }
+
         var actions = document.createElement('div');
         actions.className = 'script-actions';
 
@@ -171,6 +187,7 @@
         card.appendChild(h3);
         card.appendChild(meta);
         card.appendChild(desc);
+        if (thumb) card.appendChild(thumb);
         card.appendChild(actions);
         elGrid.appendChild(card);
       });
@@ -312,6 +329,37 @@
 
     show(elOauth);
   }
+
+  // ─── Lightbox (full-size screenshot viewer) ──────────────────────────────
+  function openLightbox(url, caption) {
+    var box = document.getElementById('lightbox');
+    if (!box) return;
+    var img = document.getElementById('lightbox-img');
+    var cap = document.getElementById('lightbox-caption');
+    img.src = url;
+    img.alt = caption || '';
+    if (cap) cap.textContent = caption || '';
+    box.hidden = false;
+    document.addEventListener('keydown', onLightboxKey);
+  }
+  function closeLightbox() {
+    var box = document.getElementById('lightbox');
+    if (!box) return;
+    box.hidden = true;
+    document.getElementById('lightbox-img').removeAttribute('src');
+    document.removeEventListener('keydown', onLightboxKey);
+  }
+  function onLightboxKey(e) {
+    if (e.key === 'Escape') closeLightbox();
+  }
+  (function wireLightbox() {
+    var box = document.getElementById('lightbox');
+    if (!box) return;
+    box.addEventListener('click', function(e) {
+      // Only the backdrop or the close button dismisses; click on image does not.
+      if (e.target === box || e.target.hasAttribute('data-lightbox-close')) closeLightbox();
+    });
+  })();
 
   init();
 })();

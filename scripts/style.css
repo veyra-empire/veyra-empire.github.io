@@ -213,6 +213,30 @@ button:hover, .install-btn:hover {
   color: var(--text);
   flex: 1;
 }
+
+.script-thumb {
+  align-self: flex-start;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: zoom-in;
+  overflow: hidden;
+  line-height: 0;
+  transition: border-color 0.12s, transform 0.12s;
+}
+.script-thumb:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.script-thumb img {
+  display: block;
+  max-width: 200px;
+  max-height: 120px;
+  width: auto;
+  height: auto;
+  object-fit: cover;
+}
 .install-btn {
   align-self: flex-start;
   margin-top: 4px;
@@ -477,6 +501,57 @@ button:hover, .install-btn:hover {
   line-height: 1.5;
 }
 
+.form-file {
+  padding: 8px 10px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.form-file::file-selector-button {
+  padding: 6px 12px;
+  margin-right: 10px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  background: rgba(242, 192, 114, 0.12);
+  color: var(--accent);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.form-file::file-selector-button:hover {
+  background: rgba(242, 192, 114, 0.22);
+}
+
+.screenshot-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.screenshot-preview img {
+  max-width: 220px;
+  max-height: 140px;
+  border-radius: 4px;
+  display: block;
+}
+.screenshot-clear {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.screenshot-clear:hover {
+  color: var(--danger);
+  border-color: rgba(224, 123, 123, 0.4);
+}
+
 .open-submissions {
   margin: 0 0 18px;
   padding: 12px 14px;
@@ -570,6 +645,59 @@ button:hover, .install-btn:hover {
 
 @media (max-width: 600px) {
   .toast-container { top: 10px; right: 10px; width: calc(100vw - 20px); }
+}
+
+/* Lightbox for screenshot thumbnails. Backdrop click or ESC closes. */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  background: rgba(10, 6, 18, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: zoom-out;
+}
+.lightbox-img {
+  max-width: min(95vw, 1400px);
+  max-height: calc(95vh - 60px);
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  cursor: default;
+}
+.lightbox-caption {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+  text-align: center;
+  max-width: 90vw;
+}
+.lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  font-size: 1.8rem;
+  line-height: 1;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.lightbox-close:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(242, 192, 114, 0.08);
 }
 
 .loading-msg {
