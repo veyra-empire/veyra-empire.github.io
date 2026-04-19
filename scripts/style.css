@@ -477,6 +477,38 @@ button:hover, .install-btn:hover {
   line-height: 1.5;
 }
 
+.cancel-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  background: rgba(224, 123, 123, 0.08);
+  border: 1px solid rgba(224, 123, 123, 0.4);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text);
+  flex-wrap: wrap;
+}
+.cancel-banner strong { color: var(--danger); }
+.cancel-banner-btn {
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  font-weight: 600;
+  background: var(--danger);
+  color: #1a0d05;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, transform 0.1s;
+}
+.cancel-banner-btn:hover { background: #f09999; transform: translateY(-1px); }
+.cancel-banner-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
 .loading-msg {
   text-align: center;
   color: var(--muted);

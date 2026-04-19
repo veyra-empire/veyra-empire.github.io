@@ -4,7 +4,7 @@
   // Must match PROXY_URL in app.js / install.js.
   var PROXY_URL = 'https://script.google.com/macros/s/AKfycbzUHg1z18WmWFSyEsZStaK2kmax2JXnPzK4LrTyEitSFVBQ2u2vfFeO6wZhjWx58EJZ7w/exec';
   var CACHE_KEY = 'veyra_session';
-  var MAX_BYTES = 2 * 1024 * 1024;
+  var MAX_BYTES = 3 * 1024 * 1024;
 
   // ─── JSONP helper (GET endpoints only) ────────────────────────────────────
   function jsonp(url) {
@@ -154,7 +154,7 @@
       if (!dt || !dt.files || !dt.files.length) return;
       var file = dt.files[0];
       if (file.size > MAX_BYTES) {
-        showError('That file is larger than the 2 MB limit.');
+        showError('That file is larger than the 3 MB limit.');
         return;
       }
       var reader = new FileReader();
@@ -171,7 +171,7 @@
   function updateSizeHint() {
     var bytes = (new Blob([fieldSource.value])).size;
     var kb = (bytes / 1024).toFixed(1);
-    sourceHint.textContent = 'Max 2 MB. Current: ' + kb + ' KB.';
+    sourceHint.textContent = 'Max 3 MB. Current: ' + kb + ' KB.';
     sourceHint.style.color = bytes > MAX_BYTES ? 'var(--danger)' : '';
   }
 
@@ -193,17 +193,40 @@
     'duplicate-id':       "A script with that ID already exists and you aren't the owner. Pick a different ID, or ask lmv if you believe this is an error.",
     'not-found':          "No script with that ID exists. Switch to New mode, or pick a different script to update.",
     'not-owner':          "You don't own this script. Only the original submitter (or lmv) can update it.",
-    'rate-limited':       'You have an open submission pending review, or you\'ve hit the daily/weekly limit. Try again later.',
     'invalid-script':     "The script source doesn't look like a valid userscript. Make sure it has a // ==UserScript== block with at least @name and @version.",
     'invalid-id':         'Script ID must be lowercase letters, digits, and hyphens only (2-49 chars).',
     'invalid-min-tier':   'Min tier must be probationary, member, or trusted.',
     'invalid-thread-url': 'Thread URL must start with https://',
-    'too-large':          'Script exceeds the 2 MB limit.',
+    'too-large':          'Script exceeds the 3 MB limit.',
     'github-error':       'GitHub is having trouble right now. Try again in a few minutes.',
     'server-error':       'Something went wrong on the server. Contact an officer.',
     'unknown-api':        'Server received an unknown request. Contact an officer.',
     'forbidden':          'Server rejected the request. Contact an officer.'
   };
+
+  /**
+   * Format a rate-limited error response using the counts returned by the
+   * server. Leads with the blocking reason (open PR / daily / weekly) and
+   * always reports both usage counts so the submitter can see exactly
+   * where they stand.
+   */
+  function rateLimitMessage(detail) {
+    if (!detail) return 'Rate limited. Try again later.';
+    var pieces = [];
+    if (detail.openPr) {
+      pieces.push('You have an open submission (PR #' + detail.openPr +
+                  ') pending review. Cancel it below to submit again.');
+    } else if (detail.daily >= detail.dailyLimit) {
+      pieces.push('You\'ve hit today\'s submission limit. Try again tomorrow.');
+    } else if (detail.weekly >= detail.weeklyLimit) {
+      pieces.push('You\'ve hit this week\'s submission limit. Try again next week.');
+    } else {
+      pieces.push('Rate limited.');
+    }
+    pieces.push('Used ' + detail.daily + '/' + detail.dailyLimit + ' today, ' +
+                detail.weekly + '/' + detail.weeklyLimit + ' this week.');
+    return pieces.join(' ');
+  }
 
   function showError(text) {
     formError.textContent = text;
@@ -213,6 +236,49 @@
   function clearError() {
     formError.textContent = '';
     formError.hidden = true;
+  }
+
+  /**
+   * Render the open-PR cancel banner at the top of the form. `openPr` is
+   * null (hide) or a PR number (show). Wires the cancel button click to
+   * POST api=cancel-submission and reload on success.
+   */
+  function renderCancelBanner(openPr) {
+    var banner = document.getElementById('cancel-banner');
+    if (!banner) return;
+    if (!openPr) { banner.hidden = true; return; }
+    banner.hidden = false;
+    document.getElementById('cancel-banner-pr').textContent = '#' + openPr;
+    var btn = document.getElementById('cancel-banner-btn');
+    btn.disabled = false;
+    btn.onclick = function() {
+      btn.disabled = true;
+      btn.textContent = 'Cancelling...';
+      fetch(PROXY_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body:    JSON.stringify({ api: 'cancel-submission', sid: session.sid }),
+        credentials: 'omit'
+      })
+        .then(function(r) { return r.text().then(function(t) {
+          try { return JSON.parse(t); } catch (_) { return { error: 'server-error' }; }
+        }); })
+        .then(function(data) {
+          if (data && data.ok) {
+            // Re-fetch my-scripts to refresh status + owned list.
+            location.reload();
+          } else {
+            btn.disabled = false;
+            btn.textContent = 'Cancel submission';
+            showError('Cancel failed: ' + (data && data.error || 'unknown'));
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'Cancel submission';
+          showError('Network error cancelling submission. Try again.');
+        });
+    };
   }
 
   // ─── Submit handler ───────────────────────────────────────────────────────
@@ -228,7 +294,7 @@
 
     var source = fieldSource.value;
     if (!source) { showError('Paste or drop the script source.'); return; }
-    if ((new Blob([source])).size > MAX_BYTES) { showError('Script exceeds the 2 MB limit.'); return; }
+    if ((new Blob([source])).size > MAX_BYTES) { showError('Script exceeds the 3 MB limit.'); return; }
     if (!fieldAttest.checked) { showError('You must confirm the attestation.'); return; }
 
     var body = {
@@ -272,8 +338,16 @@
           show('state-success');
         } else {
           show('state-form');
-          var msg = ERROR_MESSAGES[data && data.error] ||
-                    ('Submission failed' + (data && data.detail ? ': ' + data.detail : '.'));
+          var err = data && data.error;
+          var msg;
+          if (err === 'rate-limited') {
+            msg = rateLimitMessage(data.detail);
+            // If there's an open PR, make sure the cancel banner is visible.
+            if (data.detail && data.detail.openPr) renderCancelBanner(data.detail.openPr);
+          } else {
+            msg = ERROR_MESSAGES[err] ||
+                  ('Submission failed' + (data && data.detail ? ': ' + JSON.stringify(data.detail) : '.'));
+          }
           showError(msg);
         }
       })
@@ -294,7 +368,9 @@
     // Pre-fill author from session name.
     fieldAuthor.value = session.name || '';
 
-    // Fetch list of scripts the user owns so we can enable the update mode.
+    // Fetch list of scripts the user owns so we can enable the update mode,
+    // plus the caller's submission-rate-limit status so we can render the
+    // cancel banner up-front if they have an open PR.
     jsonp(PROXY_URL + '?api=my-scripts&session=' + encodeURIComponent(session.sid))
       .then(function(res) {
         if (res && res.error === 'expired') { show('state-unauthenticated'); return; }
@@ -316,6 +392,8 @@
             idUpdate.appendChild(opt);
           });
         }
+        // Render the cancel banner at form load if an open submission is pending.
+        if (res && res.status && res.status.openPr) renderCancelBanner(res.status.openPr);
         show('state-form');
         wireForm();
       })
