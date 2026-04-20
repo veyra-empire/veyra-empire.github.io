@@ -67,6 +67,7 @@
   var fieldSubmitterName, fieldReason, fieldDeleteAttest;
   var deleteNameRow, deleteReasonRow, deleteAttestRow;
   var fieldVersion, fieldVersionBtn, fieldPurpose;
+  var versionWarning, vwNew, vwCur, vwCur2;
   var submitBtn, formError, sourceHint, modeUpdateLabel, modeDeleteLabel;
   var submitOnlyRows, deleteOnlyRows, updateOnlyRows;
 
@@ -101,6 +102,10 @@
     fieldVersion     = document.getElementById('field-version');
     fieldVersionBtn  = document.getElementById('field-version-btn');
     fieldPurpose     = document.getElementById('field-purpose');
+    versionWarning   = document.getElementById('version-warning');
+    vwNew            = document.getElementById('vw-new');
+    vwCur            = document.getElementById('vw-cur');
+    vwCur2           = document.getElementById('vw-cur2');
     submitBtn        = document.getElementById('submit-btn');
     formError        = document.getElementById('form-error');
     sourceHint       = document.getElementById('source-hint');
@@ -133,6 +138,7 @@
     if (mode === 'update') prefillFromSelectedUpdate();
     updateSubmitBtnLabel();
     updateSubmitEnabled();
+    updateVersionWarning();
   }
 
   function updateSubmitBtnLabel() {
@@ -150,6 +156,47 @@
     if (!fieldDescription.value) fieldDescription.value = s.description || '';
     if (!fieldThread.value)      fieldThread.value      = s.threadUrl || '';
     if (s.minTier) fieldMinTier.value = s.minTier;
+    updateVersionWarning();
+  }
+
+  // Semver-lite numeric compare. Returns <0 if a<b, 0 if equal, >0 if a>b.
+  // Non-numeric segments fall back to string compare. Missing segments are 0.
+  function compareVersions(a, b) {
+    var pa = String(a || '').split('.');
+    var pb = String(b || '').split('.');
+    var n = Math.max(pa.length, pb.length);
+    for (var i = 0; i < n; i++) {
+      var sa = pa[i] || '0';
+      var sb = pb[i] || '0';
+      var na = parseInt(sa, 10);
+      var nb = parseInt(sb, 10);
+      if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+      if (isNaN(na) || isNaN(nb)) {
+        if (sa !== sb) return sa < sb ? -1 : 1;
+      }
+    }
+    return 0;
+  }
+
+  // Advisory banner: if the submitter types a version lower than the currently
+  // distributed one, Tampermonkey won't auto-install the rollback. Surface the
+  // catch but don't block the submit - contributor may have a good reason.
+  function updateVersionWarning() {
+    if (!versionWarning) return;
+    if (currentMode() !== 'update') { versionWarning.hidden = true; return; }
+    var selectedId = idUpdate.value;
+    var s = selectedId && ownedScripts.find(function(x) { return x.id === selectedId; });
+    var current = s && s.version;
+    var proposed = fieldVersion && fieldVersion.value.trim();
+    if (!current || !proposed) { versionWarning.hidden = true; return; }
+    if (compareVersions(proposed, current) < 0) {
+      vwNew.textContent  = proposed;
+      vwCur.textContent  = current;
+      vwCur2.textContent = current;
+      versionWarning.hidden = false;
+    } else {
+      versionWarning.hidden = true;
+    }
   }
 
   // ─── Source auto-fill on paste/drop ───────────────────────────────────────
@@ -178,6 +225,7 @@
       fieldVersion.value = tags.version;
     }
     updateSubmitEnabled();
+    updateVersionWarning();
   }
 
   // Version field: locked by default, Edit button unlocks, Confirm re-locks.
@@ -659,7 +707,13 @@
     idUpdate.addEventListener('change', function() {
       prefillFromSelectedUpdate();
       updateSubmitEnabled();
+      updateVersionWarning();
     });
+
+    // Lower-version advisory: re-check on any version-field change. Input
+    // fires while typing (even when readonly is briefly flipped off), so
+    // the warning appears/disappears as the submitter adjusts.
+    if (fieldVersion) fieldVersion.addEventListener('input', updateVersionWarning);
 
     // Delete-mode input handlers
     idDelete.addEventListener('change', updateSubmitEnabled);

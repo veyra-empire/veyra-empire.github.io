@@ -143,6 +143,10 @@
               <button type="button" id="field-version-btn" class="version-btn">Edit</button>
             </div>
             <p class="form-hint">Pre-baked from the pasted script's <code>@version</code>. Tampermonkey compares this to decide whether to auto-update installed copies, so bump it if your change should propagate.</p>
+            <div id="version-warning" class="form-warning" hidden>
+              Tampermonkey won't auto-install version <strong id="vw-new"></strong> over the currently distributed <strong id="vw-cur"></strong>.
+              To reach existing users, bump the version above <span id="vw-cur2"></span> and describe the rollback in the What's new section below. Otherwise only fresh installs will pick this up.
+            </div>
           </div>
 
           <div class="form-row update-only" id="update-purpose-row" hidden>

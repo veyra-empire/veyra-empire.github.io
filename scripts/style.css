@@ -415,6 +415,17 @@ button:hover, .install-btn:hover {
   color: var(--muted);
   line-height: 1.4;
 }
+.form-warning {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(242, 192, 114, 0.1);
+  border: 1px solid rgba(242, 192, 114, 0.35);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #f2c072;
+}
+.form-warning strong { color: #f5e9d0; font-weight: 600; }
 .form-input {
   width: 100%;
   padding: 10px 12px;
