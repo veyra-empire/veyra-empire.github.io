@@ -122,8 +122,18 @@
         card.dataset.tier = s.minTier || '';
         card.dataset.tierRank = String(TIER_ORDER.indexOf(s.minTier));
 
+        // Title row: name + version badge side by side.
+        var titleWrap = document.createElement('div');
+        titleWrap.className = 'card-title';
         var h3 = document.createElement('h3');
         h3.textContent = s.name || s.id;
+        titleWrap.appendChild(h3);
+        if (s.version) {
+          var verPill = document.createElement('span');
+          verPill.className = 'version-pill';
+          verPill.textContent = 'v' + s.version;
+          titleWrap.appendChild(verPill);
+        }
 
         var meta = document.createElement('div');
         meta.className = 'script-meta';
@@ -139,6 +149,14 @@
         var desc = document.createElement('div');
         desc.className = 'script-desc';
         desc.textContent = s.description || '';
+
+        // Optional changelog disclosure: lets members see recent updates
+        // without leaving the page. Rendered only if at least one non-empty
+        // entry exists. Collapsed by default to keep the card compact.
+        var changelogEl = null;
+        if (Array.isArray(s.changelog) && s.changelog.length) {
+          changelogEl = buildChangelog(s.changelog);
+        }
 
         // Optional screenshot thumbnail. Click expands to a full-size lightbox.
         // Validate origin as an extra defense - we expect public raw.githubusercontent.com.
@@ -184,9 +202,10 @@
           actions.appendChild(threadLink);
         }
 
-        card.appendChild(h3);
+        card.appendChild(titleWrap);
         card.appendChild(meta);
         card.appendChild(desc);
+        if (changelogEl) card.appendChild(changelogEl);
         if (thumb) card.appendChild(thumb);
         card.appendChild(actions);
         elGrid.appendChild(card);
@@ -194,7 +213,155 @@
       applySort();
     }
 
+    renderExtensions(data.extensions || []);
+
     show(elScripts);
+  }
+
+  // Shared changelog renderer used by both scripts and extension cards.
+  // Returns a <details> element with the last N entries, each shown as:
+  //   v1.2.3 (2026-04-21)
+  //     notes text, line-broken as written
+  function buildChangelog(entries) {
+    var wrap = document.createElement('details');
+    wrap.className = 'card-changelog';
+    var summary = document.createElement('summary');
+    summary.textContent = 'Show recent changes';
+    wrap.appendChild(summary);
+
+    var list = document.createElement('div');
+    list.className = 'card-changelog-list';
+    entries.forEach(function(e) {
+      var item = document.createElement('div');
+      item.className = 'card-changelog-item';
+      var head = document.createElement('div');
+      head.className = 'card-changelog-head';
+      head.textContent = 'v' + (e.version || '?') + (e.date ? '  (' + e.date + ')' : '');
+      item.appendChild(head);
+      if (e.notes) {
+        var notes = document.createElement('div');
+        notes.className = 'card-changelog-notes';
+        notes.textContent = e.notes;
+        item.appendChild(notes);
+      }
+      list.appendChild(item);
+    });
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  // Extensions render into their own grid below the scripts section.
+  // Different visual affordance because the install flow is different
+  // (not a Tampermonkey one-click; download from Drive + load unpacked).
+  function renderExtensions(extensions) {
+    var section = document.getElementById('extensions-section');
+    var grid    = document.getElementById('extensionsGrid');
+    if (!section || !grid) return;
+    if (!extensions.length) { section.hidden = true; return; }
+    grid.innerHTML = '';
+    extensions.forEach(function(x) {
+      var card = document.createElement('div');
+      card.className = 'script-card extension-card';
+
+      var titleWrap = document.createElement('div');
+      titleWrap.className = 'card-title';
+      var h3 = document.createElement('h3');
+      h3.textContent = x.name || x.id;
+      titleWrap.appendChild(h3);
+      if (x.version) {
+        var verPill = document.createElement('span');
+        verPill.className = 'version-pill';
+        verPill.textContent = 'v' + x.version;
+        titleWrap.appendChild(verPill);
+      }
+      var extTag = document.createElement('span');
+      extTag.className = 'extension-tag';
+      extTag.textContent = 'Browser extension';
+      titleWrap.appendChild(extTag);
+
+      var meta = document.createElement('div');
+      meta.className = 'script-meta';
+      meta.appendChild(document.createTextNode('by ' + (x.author || '')));
+      if (x.minTier) {
+        var pill = document.createElement('span');
+        pill.className = 'tier-pill tier-' + x.minTier;
+        pill.textContent = x.minTier;
+        meta.appendChild(document.createTextNode(' '));
+        meta.appendChild(pill);
+      }
+
+      var desc = document.createElement('div');
+      desc.className = 'script-desc';
+      desc.textContent = x.description || '';
+
+      var thumb = null;
+      if (x.screenshotUrl && /^https:\/\/raw\.githubusercontent\.com\//i.test(x.screenshotUrl)) {
+        thumb = document.createElement('button');
+        thumb.type = 'button';
+        thumb.className = 'script-thumb';
+        thumb.setAttribute('aria-label', 'Show screenshot for ' + (x.name || x.id));
+        var img = document.createElement('img');
+        img.src = x.screenshotUrl;
+        img.alt = '';
+        img.loading = 'lazy';
+        thumb.appendChild(img);
+        thumb.addEventListener('click', function() { openLightbox(x.screenshotUrl, x.name || x.id); });
+      }
+
+      // Install instructions - rendered as an expandable numbered list.
+      var instr = null;
+      if (Array.isArray(x.instructions) && x.instructions.length) {
+        instr = document.createElement('details');
+        instr.className = 'card-instructions';
+        var summary = document.createElement('summary');
+        summary.textContent = 'Install instructions';
+        instr.appendChild(summary);
+        var ol = document.createElement('ol');
+        ol.className = 'card-instructions-list';
+        x.instructions.forEach(function(step) {
+          var li = document.createElement('li');
+          li.textContent = step;
+          ol.appendChild(li);
+        });
+        instr.appendChild(ol);
+      }
+
+      var changelogEl = null;
+      if (Array.isArray(x.changelog) && x.changelog.length) {
+        changelogEl = buildChangelog(x.changelog);
+      }
+
+      var actions = document.createElement('div');
+      actions.className = 'script-actions';
+      if (x.driveUrl && /^https:\/\//i.test(x.driveUrl)) {
+        var btn = document.createElement('a');
+        btn.className = 'install-btn extension-btn';
+        btn.target = '_blank';
+        btn.rel = 'noopener';
+        btn.textContent = 'Open Drive folder';
+        btn.href = x.driveUrl;
+        actions.appendChild(btn);
+      }
+      if (x.threadUrl && /^https:\/\//i.test(x.threadUrl)) {
+        var threadLink = document.createElement('a');
+        threadLink.className = 'thread-link';
+        threadLink.target = '_blank';
+        threadLink.rel = 'noopener';
+        threadLink.href = x.threadUrl;
+        threadLink.textContent = 'Discussion \u2192';
+        actions.appendChild(threadLink);
+      }
+
+      card.appendChild(titleWrap);
+      card.appendChild(meta);
+      card.appendChild(desc);
+      if (instr) card.appendChild(instr);
+      if (changelogEl) card.appendChild(changelogEl);
+      if (thumb) card.appendChild(thumb);
+      card.appendChild(actions);
+      grid.appendChild(card);
+    });
+    section.hidden = false;
   }
 
   // ─── Sort bar ────────────────────────────────────────────────────────────
