@@ -38,6 +38,9 @@ under `veyra_session` - `localStorage`, not `sessionStorage`, so
 `install.html` can read it from a separate tab - and renders. No cookies, no
 CORS, no trips through `script.google.com` in the browser URL bar.
 
+A "Recent updates" panel above the listing reports what shipped lately,
+built from the changelog entries already in that payload - no extra request.
+
 Later visits render that stored copy immediately, then refresh the content
 lists in the background from `?api=listing` (on load, and on returning to a
 tab left more than five minutes). Changes appear in place, with a short

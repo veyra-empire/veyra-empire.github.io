@@ -86,6 +86,14 @@
           Please do not share the files with others - send them to the Discord or have them contact lmv instead.
         </p>
 
+        <!-- Built from the changelog entries the listing payload already
+             carries; app.js hides it when a member has nothing to show. -->
+        <details class="recent-panel" id="recentPanel" hidden>
+          <summary>Recent updates</summary>
+          <div class="recent-list" id="recentList"></div>
+          <button type="button" class="recent-more" id="recentMore" hidden>Show more</button>
+        </details>
+
         <div id="empty-state" class="empty-state" hidden>No content available at your tier yet.</div>
 
         <div id="resources-section" hidden>

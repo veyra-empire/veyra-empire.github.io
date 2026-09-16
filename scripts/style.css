@@ -139,6 +139,127 @@ body::before {
 }
 .listing-notice[data-fading="1"] { opacity: 0; }
 
+/* Recent updates panel. Sits above the listing and reports what shipped
+   lately, so a member does not have to remember what each card looked like
+   last visit. Shares the disclosure treatment of .card-changelog. */
+.recent-panel {
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  padding: 12px 16px;
+  margin-bottom: 22px;
+}
+.recent-panel > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+.recent-panel > summary::-webkit-details-marker { display: none; }
+.recent-panel > summary::before {
+  content: '\25b8 ';
+  display: inline-block;
+  width: 1em;
+  transition: transform 120ms ease;
+}
+.recent-panel[open] > summary::before { transform: rotate(90deg); }
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.recent-item {
+  border-left: 2px solid rgba(242, 192, 114, 0.25);
+  padding-left: 10px;
+}
+.recent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.recent-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  /* Long names must wrap rather than push the timestamp off a phone. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.recent-link:hover { color: var(--accent); }
+.recent-tag {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.recent-tag-new { color: #82c882; }
+.recent-when {
+  font-size: 0.74rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.recent-notes > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-size: 0.74rem;
+  color: var(--muted);
+  padding: 2px 0;
+}
+.recent-notes > summary::-webkit-details-marker { display: none; }
+.recent-notes > summary::before { content: '\25b8 '; }
+.recent-notes[open] > summary::before { content: '\25be '; }
+.recent-notes > summary:hover { color: var(--text); }
+.recent-notes-body {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text);
+  /* Author-typed text: keep their line breaks, break anything unbreakable. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 4px;
+}
+.recent-notes-empty { color: var(--muted); font-style: italic; }
+.recent-byline {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.recent-more {
+  margin-top: 10px;
+  padding: 6px 14px;
+  font-size: 0.76rem;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--muted);
+  cursor: pointer;
+}
+.recent-more:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Flash the card a recent-updates row points at, so the eye lands on it
+   after the scroll rather than hunting the column. */
+@keyframes card-flash {
+  0%   { border-color: var(--accent); background: rgba(242, 192, 114, 0.14); }
+  100% { border-color: rgba(255, 255, 255, 0.06); background: rgba(0, 0, 0, 0.28); }
+}
+.script-card.card-flash { animation: card-flash 1.8s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .script-card.card-flash { animation-duration: 0.01s; }
+}
+
 .panel {
   width: 100%;
   max-width: 720px;

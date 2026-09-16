@@ -73,6 +73,9 @@
   var elSignin   = document.getElementById('signin-btn');
   var elSignout  = document.getElementById('signout-btn');
   var elNotice   = document.getElementById('listingNotice');
+  var elRecent     = document.getElementById('recentPanel');
+  var elRecentList = document.getElementById('recentList');
+  var elRecentMore = document.getElementById('recentMore');
 
   function show(section) {
     [elLoading, elOauth, elDenied, elScripts].forEach(function(el) { el.hidden = true; });
@@ -258,6 +261,7 @@
 
     renderResources(resources);
     renderExtensions(extensions);
+    renderRecent(data);
 
     show(elScripts);
   }
@@ -282,12 +286,17 @@
       head.className = 'card-changelog-head';
       head.textContent = 'v' + (e.version || '?') + (e.date ? '  (' + e.date + ')' : '');
       item.appendChild(head);
+      var notes = document.createElement('div');
+      notes.className = 'card-changelog-notes';
       if (e.notes) {
-        var notes = document.createElement('div');
-        notes.className = 'card-changelog-notes';
         notes.textContent = e.notes;
-        item.appendChild(notes);
+      } else {
+        // Submissions record a version whether or not the submitter wrote
+        // anything; say so rather than leaving a bare version line.
+        notes.className += ' recent-notes-empty';
+        notes.textContent = 'No patch notes provided.';
       }
+      item.appendChild(notes);
       list.appendChild(item);
     });
     wrap.appendChild(list);
@@ -873,6 +882,205 @@
       });
   }
 
+
+
+  // ─── Recent updates panel ────────────────────────────────────────────────
+  // A feed of what shipped lately, built entirely from the changelog entries
+  // the listing payload already carries - no extra request, and it is
+  // tier-correct for free, since the proxy only sends what the member may see.
+  //
+  // Entries are stamped with their PUBLISH time by the manifest workflow (the
+  // merge is when a member can actually get an update; the proxy only knows
+  // when it was submitted). Older entries predate that and carry a plain date.
+  var RECENT_CAP     = 25;   // most the panel will ever hold
+  var RECENT_VISIBLE = 10;   // shown before "Show more"
+  var RECENT_KEY     = 'veyra_recent_open';
+
+  // Sort key for an entry: the published timestamp when there is one, else the
+  // legacy day pinned to its start, so old and new interleave predictably.
+  function entryTime(e) {
+    if (e.at) {
+      var precise = Date.parse(e.at);
+      if (!isNaN(precise)) return precise;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(e.date || '')) return Date.parse(e.date + 'T00:00:00Z');
+    return NaN;
+  }
+
+  function buildRecentFeed(data) {
+    var rows = [];
+    [data.scripts, data.resources, data.extensions].forEach(function(items) {
+      (items || []).forEach(function(item) {
+        (item.changelog || []).forEach(function(e) {
+          // Generator-seeded placeholders are not events and have no real
+          // date - they would otherwise head the panel dated "retroactive".
+          if (e.date === 'retroactive') return;
+          var time = entryTime(e);
+          if (isNaN(time)) return;
+          rows.push({
+            id:      item.id,
+            name:    item.name || item.id,
+            author:  item.author || '',
+            mode:    e.mode === 'new' ? 'new' : 'update',
+            version: e.version || '',
+            notes:   String(e.notes || '').trim(),
+            by:      e.by || '',
+            time:    time,
+            precise: !!e.at
+          });
+        });
+      });
+    });
+    rows.sort(function(a, b) { return b.time - a.time; });
+    return rows.slice(0, RECENT_CAP);
+  }
+
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's') + ' ago'; }
+
+  function formatWhen(row) {
+    var ms = Date.now() - row.time;
+    if (ms < 0) ms = 0;
+    if (ms < 604800000) {  // under a week reads better as elapsed time
+      if (ms < 60000)   return 'just now';
+      if (ms < 3600000) return plural(Math.floor(ms / 60000), 'minute');
+      if (ms < 86400000) return plural(Math.floor(ms / 3600000), 'hour');
+      return plural(Math.floor(ms / 86400000), 'day');
+    }
+    return new Date(row.time).toISOString().slice(0, 10);
+  }
+
+  // Exact value for the tooltip. Legacy rows only know a date, so don't imply
+  // a time of day we never recorded.
+  function exactWhen(row) {
+    var d = new Date(row.time);
+    if (!row.precise) return d.toISOString().slice(0, 10);
+    try {
+      return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
+    } catch (_) {
+      return d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+    }
+  }
+
+  function scrollToItem(id) {
+    var card = null;
+    Array.prototype.forEach.call(document.querySelectorAll('.script-card'), function(c) {
+      if (!card && c.dataset.id === id) card = c;
+    });
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Restart the flash even if one is already running on this card.
+    card.classList.remove('card-flash');
+    void card.offsetWidth;
+    card.classList.add('card-flash');
+    setTimeout(function() { card.classList.remove('card-flash'); }, 1800);
+  }
+
+  function recentRow(row) {
+    var item = document.createElement('div');
+    item.className = 'recent-item';
+
+    var head = document.createElement('div');
+    head.className = 'recent-head';
+
+    var link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'recent-link';
+    var tag = document.createElement('span');
+    tag.className = 'recent-tag recent-tag-' + row.mode;
+    tag.textContent = row.mode === 'new' ? 'New:' : 'Update:';
+    link.appendChild(tag);
+    link.appendChild(document.createTextNode(' ' + row.name));
+    link.addEventListener('click', function() { scrollToItem(row.id); });
+    head.appendChild(link);
+
+    var when = document.createElement('span');
+    when.className = 'recent-when';
+    when.textContent = formatWhen(row);
+    when.title = exactWhen(row);
+    head.appendChild(when);
+    item.appendChild(head);
+
+    var notes = document.createElement('details');
+    notes.className = 'recent-notes';
+    var summary = document.createElement('summary');
+    summary.textContent = 'Patch notes';
+    notes.appendChild(summary);
+
+    var body = document.createElement('div');
+    body.className = 'recent-notes-body';
+    if (row.notes) {
+      body.textContent = row.notes;
+    } else {
+      body.className += ' recent-notes-empty';
+      body.textContent = 'No patch notes provided.';
+    }
+    notes.appendChild(body);
+
+    // Byline: who sent it in, and who wrote it when those differ. There is
+    // room for both here, unlike in the row itself.
+    var credits = [];
+    if (row.version) credits.push('v' + row.version);
+    if (row.by) credits.push('Submitted by ' + row.by);
+    if (row.author && normalizeName(row.author) !== normalizeName(row.by)) {
+      credits.push('Author: ' + row.author);
+    }
+    if (credits.length) {
+      var byline = document.createElement('div');
+      byline.className = 'recent-byline';
+      byline.textContent = credits.join(' · ');
+      notes.appendChild(byline);
+    }
+
+    item.appendChild(notes);
+    return item;
+  }
+
+  function normalizeName(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  function renderRecent(data) {
+    if (!elRecent || !elRecentList) return;
+    var rows = buildRecentFeed(data);
+    elRecentList.innerHTML = '';
+    if (!rows.length) {
+      // A member at a tier with nothing published yet: no empty panel.
+      elRecent.hidden = true;
+      if (elRecentMore) elRecentMore.hidden = true;
+      return;
+    }
+    elRecent.hidden = false;
+    rows.forEach(function(row, i) {
+      var el = recentRow(row);
+      if (i >= RECENT_VISIBLE) el.hidden = true;
+      elRecentList.appendChild(el);
+    });
+    if (elRecentMore) {
+      var hiddenCount = Math.max(0, rows.length - RECENT_VISIBLE);
+      elRecentMore.hidden = hiddenCount === 0;
+      elRecentMore.textContent = 'Show ' + hiddenCount + ' more';
+    }
+  }
+
+  if (elRecentMore) {
+    elRecentMore.addEventListener('click', function() {
+      Array.prototype.forEach.call(elRecentList.children, function(el) { el.hidden = false; });
+      elRecentMore.hidden = true;
+    });
+  }
+
+  if (elRecent) {
+    var recentOpen = true;  // the point of the panel is to be read
+    try {
+      var storedRecent = localStorage.getItem(RECENT_KEY);
+      if (storedRecent !== null) recentOpen = storedRecent === '1';
+    } catch (_) { /* storage disabled */ }
+    elRecent.open = recentOpen;
+    elRecent.addEventListener('toggle', function() {
+      try { localStorage.setItem(RECENT_KEY, elRecent.open ? '1' : '0'); }
+      catch (_) { /* storage disabled */ }
+    });
+  }
 
   // ─── Background listing refresh ──────────────────────────────────────────
   // The cached payload renders instantly, but it is a snapshot from sign-in
