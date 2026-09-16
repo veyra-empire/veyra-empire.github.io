@@ -40,6 +40,12 @@ CORS, no trips through `script.google.com` in the browser URL bar.
 
 A "Recent updates" panel above the listing reports what shipped lately,
 built from the changelog entries already in that payload - no extra request.
+Each row is `New:` or `Update:` plus the item's name, which scrolls to that
+card and highlights it, with the time it was published on the right. Expanding
+a row shows the submitter's notes (or "No patch notes provided.") and credits
+both `Submitted by` and `Original author`, always both, since cross-author
+submissions are common and the two are often written differently even for the
+same person.
 
 Later visits render that stored copy immediately, then refresh the content
 lists in the background from `?api=listing` (on load, and on returning to a

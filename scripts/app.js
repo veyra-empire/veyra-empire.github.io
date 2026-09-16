@@ -972,7 +972,11 @@
     card.classList.remove('card-flash');
     void card.offsetWidth;
     card.classList.add('card-flash');
-    setTimeout(function() { card.classList.remove('card-flash'); }, 1800);
+    // Must match the animation length in style.css: pulling the class early
+    // truncates the fade. The animation holds at full highlight first, because
+    // the smooth scroll above takes roughly half a second to arrive and a
+    // flash that starts fading immediately is half over by then.
+    setTimeout(function() { card.classList.remove('card-flash'); }, 3200);
   }
 
   function recentRow(row) {
@@ -1016,14 +1020,15 @@
     }
     notes.appendChild(body);
 
-    // Byline: who sent it in, and who wrote it when those differ. There is
-    // room for both here, unlike in the row itself.
+    // Byline: every name we have, always. Cross-author submissions are
+    // routine here, so the submitter and the original author are two separate
+    // facts. They are also often written differently for the same person, and
+    // a reader cannot tell a line that was suppressed from one that was never
+    // recorded - so neither is ever dropped for resembling the other.
     var credits = [];
     if (row.version) credits.push('v' + row.version);
-    if (row.by) credits.push('Submitted by ' + row.by);
-    if (row.author && normalizeName(row.author) !== normalizeName(row.by)) {
-      credits.push('Author: ' + row.author);
-    }
+    if (row.by)      credits.push('Submitted by ' + row.by);
+    if (row.author)  credits.push('Original author: ' + row.author);
     if (credits.length) {
       var byline = document.createElement('div');
       byline.className = 'recent-byline';
@@ -1033,10 +1038,6 @@
 
     item.appendChild(notes);
     return item;
-  }
-
-  function normalizeName(s) {
-    return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
   function renderRecent(data) {
@@ -1138,12 +1139,27 @@
     return 'Archive updated - ' + parts.join(', ');
   }
 
-  function showListingNotice(text) {
+  // opts.action ({ label, onClick }) appends a real button rather than making
+  // the line itself clickable, so it is reachable by keyboard for free.
+  // opts.persist keeps it up: a condition the member has to act on should not
+  // fade away while they are reading it.
+  function showListingNotice(text, opts) {
     if (!elNotice) return;
+    var options = opts || {};
     clearTimeout(noticeTimer);
     elNotice.textContent = text;
     elNotice.removeAttribute('data-fading');
     elNotice.hidden = false;
+    if (options.action) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'listing-notice-action';
+      btn.textContent = options.action.label;
+      btn.addEventListener('click', options.action.onClick);
+      elNotice.appendChild(document.createTextNode(' '));
+      elNotice.appendChild(btn);
+    }
+    if (options.persist) return;
     noticeTimer = setTimeout(function() {
       elNotice.setAttribute('data-fading', '1');
       noticeTimer = setTimeout(function() { elNotice.hidden = true; }, 500);
@@ -1185,10 +1201,21 @@
     jsonp(PROXY_URL + '?api=listing&session=' + encodeURIComponent(current.sid))
       .then(function(body) {
         refreshBusy = false;
-        // An expired session or a server hiccup leaves the page exactly as it
-        // is. Stale cards beat yanking a member to a sign-in screen mid-read,
-        // and a dead session is already recovered by install.html's resume.
-        if (!body || body.error) return;
+        // A server hiccup is transient: stay quiet, the next refresh fixes it.
+        // An expired session is not - past the session ceiling every refresh
+        // is refused, so the page would serve the snapshot from the member's
+        // last sign-in forever with no sign anything was wrong. That silence
+        // sent lmv chasing a data bug that did not exist. Say it, offer the
+        // fix, and still leave the cards alone.
+        if (!body || body.error) {
+          if (body && body.error === 'expired') {
+            showListingNotice('Your sign-in expired, so this list may be out of date.', {
+              persist: true,
+              action: { label: 'Sign in again', onClick: function() { startSignIn(); } }
+            });
+          }
+          return;
+        }
         lastRefresh = Date.now();
         // Signed out, or signed in as someone else, while this was in flight.
         var stored = readSession();
