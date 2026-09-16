@@ -118,6 +118,27 @@ body::before {
 .ui-restore:hover { background: rgba(15, 10, 30, 0.95); border-color: var(--accent); }
 [data-ui="off"] .ui-restore { display: inline-block; }
 
+/* Says what the background listing refresh changed. Fixed like
+   .ui-restore so it is visible wherever the member is scrolled to, and
+   muted because it reports rather than asks for anything. */
+.listing-notice {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 2147483000;
+  margin: 0;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(15, 10, 30, 0.88);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  transition: opacity 400ms ease;
+}
+.listing-notice[data-fading="1"] { opacity: 0; }
+
 .panel {
   width: 100%;
   max-width: 720px;

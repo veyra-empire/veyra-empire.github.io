@@ -38,6 +38,11 @@ under `veyra_session` - `localStorage`, not `sessionStorage`, so
 `install.html` can read it from a separate tab - and renders. No cookies, no
 CORS, no trips through `script.google.com` in the browser URL bar.
 
+Later visits render that stored copy immediately, then refresh the content
+lists in the background from `?api=listing` (on load, and on returning to a
+tab left more than five minutes). Changes appear in place, with a short
+notice naming what changed; a failed or expired call leaves the page alone.
+
 Install buttons deliberately carry **no** credential: they point at
 `install.html?s=<scriptId>`, which mints a single-use token at click time.
 Copying an Install link therefore gives someone a URL that does nothing in
@@ -88,8 +93,9 @@ see for more info). The data lives in the manifest, not in this repo.
 
 Propagation time: up to 10 minutes (the proxy caches the manifest for 10 min).
 To apply immediately, run `_clearMembershipCache()` in the Apps Script editor.
-Members already signed in see the new link the next time they sign in - their
-cached content list in `localStorage` is rendered as-is until then.
+Members already signed in pick it up on their next page load, or when they
+return to an open tab, via the background listing refresh - no sign-out
+needed.
 
 No re-deploy of the proxy or this repo is needed - manifest edits are
 live data, not code.

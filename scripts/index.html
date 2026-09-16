@@ -193,6 +193,10 @@
 
   <!-- Sits outside .panel deliberately, so hiding the panel cannot hide the
        only way back. Shown by CSS only while data-ui="off". -->
+  <!-- Reports a background listing refresh. Fixed and a direct child of
+       body, like .ui-restore, so it is seen wherever the member is
+       scrolled to and hiding the interface cannot take it along. -->
+  <p class="listing-notice" id="listingNotice" role="status" aria-live="polite" hidden></p>
   <button type="button" class="ui-restore" id="uiRestore">Show interface</button>
 
   <script src="app.js"></script>

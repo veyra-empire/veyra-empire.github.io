@@ -72,6 +72,7 @@
   var elControls = document.getElementById('scripts-controls');
   var elSignin   = document.getElementById('signin-btn');
   var elSignout  = document.getElementById('signout-btn');
+  var elNotice   = document.getElementById('listingNotice');
 
   function show(section) {
     [elLoading, elOauth, elDenied, elScripts].forEach(function(el) { el.hidden = true; });
@@ -145,6 +146,7 @@
       scripts.forEach(function(s) {
         var card = document.createElement('div');
         card.className = 'script-card';
+        card.dataset.id = s.id || '';
         card.dataset.name = (s.name || '').toLowerCase();
         card.dataset.author = (s.author || '').toLowerCase();
         card.dataset.tier = s.minTier || '';
@@ -304,6 +306,7 @@
     extensions.forEach(function(x) {
       var card = document.createElement('div');
       card.className = 'script-card extension-card';
+      card.dataset.id = x.id || '';
 
       var titleWrap = document.createElement('div');
       titleWrap.className = 'card-title';
@@ -434,6 +437,7 @@
     resources.forEach(function(r) {
       var card = document.createElement('div');
       card.className = 'script-card resource-card';
+      card.dataset.id = r.id || '';
 
       var titleWrap = document.createElement('div');
       titleWrap.className = 'card-title';
@@ -856,6 +860,7 @@
             location.replace('install.html?s=' + encodeURIComponent(resume) + '&retry=1');
             return;
           }
+          lastRefresh = Date.now();
           renderScripts(body);
         } else {
           sessionStorage.removeItem(RESUME_KEY);
@@ -867,6 +872,147 @@
         showDenied('oauth-error');
       });
   }
+
+
+  // ─── Background listing refresh ──────────────────────────────────────────
+  // The cached payload renders instantly, but it is a snapshot from sign-in
+  // and nothing used to replace it: a member who stayed signed in never saw a
+  // newly submitted script, a version bump or new patch notes, and signing
+  // out was the only cure. `?api=listing` re-projects the listing for the
+  // same session, so an open page catches up with no Discord round trip.
+  var REFRESH_IDLE_MS = 5 * 60 * 1000;  // floor between checks when returning to a tab
+  var refreshBusy = false;
+  var lastRefresh = 0;
+  var noticeTimer = null;
+
+  function readSession() {
+    try {
+      var raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return (parsed && parsed.sid) ? parsed : null;
+    } catch (_) { return null; }
+  }
+
+  function listingKey(data) {
+    return JSON.stringify([data.scripts || [], data.resources || [], data.extensions || []]);
+  }
+
+  // What changed, in the fewest words that still say something. A single
+  // change is worth naming; several are only worth counting.
+  function describeChanges(prev, next) {
+    var SECTIONS = ['scripts', 'resources', 'extensions'];
+    var before = {}, seen = {}, added = [], updated = [], removed = 0;
+    SECTIONS.forEach(function(k) {
+      (prev[k] || []).forEach(function(it) { before[k + ':' + it.id] = JSON.stringify(it); });
+    });
+    SECTIONS.forEach(function(k) {
+      (next[k] || []).forEach(function(it) {
+        var key = k + ':' + it.id;
+        seen[key] = true;
+        if (!(key in before)) added.push(it.name || it.id);
+        else if (before[key] !== JSON.stringify(it)) updated.push(it.name || it.id);
+      });
+    });
+    Object.keys(before).forEach(function(key) { if (!seen[key]) removed++; });
+
+    var total = added.length + updated.length + removed;
+    if (!total) return '';
+    if (total === 1) {
+      if (added.length)   return 'Archive updated - ' + added[0] + ' added';
+      if (updated.length) return 'Archive updated - ' + updated[0] + ' updated';
+      return 'Archive updated - one entry removed';
+    }
+    var parts = [];
+    if (added.length)   parts.push(added.length + ' added');
+    if (updated.length) parts.push(updated.length + ' updated');
+    if (removed)        parts.push(removed + ' removed');
+    return 'Archive updated - ' + parts.join(', ');
+  }
+
+  function showListingNotice(text) {
+    if (!elNotice) return;
+    clearTimeout(noticeTimer);
+    elNotice.textContent = text;
+    elNotice.removeAttribute('data-fading');
+    elNotice.hidden = false;
+    noticeTimer = setTimeout(function() {
+      elNotice.setAttribute('data-fading', '1');
+      noticeTimer = setTimeout(function() { elNotice.hidden = true; }, 500);
+    }, 9000);
+  }
+
+  // Re-rendering rebuilds every card, so note where the member was and what
+  // they had open, then put it back.
+  function captureViewState() {
+    var open = [];
+    Array.prototype.forEach.call(document.querySelectorAll('.script-card details[open]'), function(d) {
+      var card = d.closest('.script-card');
+      if (card && card.dataset.id) open.push(card.dataset.id + '|' + d.className);
+    });
+    return { scrollY: window.scrollY, open: open };
+  }
+
+  function restoreViewState(state) {
+    if (state.open.length) {
+      Array.prototype.forEach.call(document.querySelectorAll('.script-card'), function(card) {
+        var id = card.dataset.id;
+        if (!id) return;
+        Array.prototype.forEach.call(card.querySelectorAll('details'), function(d) {
+          if (state.open.indexOf(id + '|' + d.className) >= 0) d.open = true;
+        });
+      });
+    }
+    // Same trap as setUiHidden(): scrolling before layout recomputes clamps
+    // the offset against the old page height.
+    void document.documentElement.offsetHeight;
+    window.scrollTo(0, state.scrollY);
+  }
+
+  function refreshListing(force) {
+    var current = readSession();
+    if (!current || refreshBusy) return;
+    if (!force && (Date.now() - lastRefresh) < REFRESH_IDLE_MS) return;
+    refreshBusy = true;
+    jsonp(PROXY_URL + '?api=listing&session=' + encodeURIComponent(current.sid))
+      .then(function(body) {
+        refreshBusy = false;
+        // An expired session or a server hiccup leaves the page exactly as it
+        // is. Stale cards beat yanking a member to a sign-in screen mid-read,
+        // and a dead session is already recovered by install.html's resume.
+        if (!body || body.error) return;
+        lastRefresh = Date.now();
+        // Signed out, or signed in as someone else, while this was in flight.
+        var stored = readSession();
+        if (!stored || stored.sid !== current.sid) return;
+
+        var merged = JSON.parse(JSON.stringify(stored));
+        merged.scripts    = body.scripts    || [];
+        merged.resources  = body.resources  || [];
+        merged.extensions = body.extensions || [];
+        if (body.tier)                merged.tier  = body.tier;
+        if (body.name  !== undefined) merged.name  = body.name;
+        if (body.email !== undefined) merged.email = body.email;
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(merged)); }
+        catch (_) { /* quota or storage disabled; the page still updates */ }
+
+        // Unchanged is the common case: no redraw, so no flicker.
+        if (listingKey(stored) === listingKey(merged)) return;
+        if (elScripts.hidden) return;  // not looking at the listing
+
+        var text = describeChanges(stored, merged);
+        var view = captureViewState();
+        renderScripts(merged);
+        restoreViewState(view);
+        if (text) showListingNotice(text);
+      })
+      .catch(function() { refreshBusy = false; });
+  }
+
+  // A tab left open all day catches up when the member comes back to it.
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') refreshListing(false);
+  });
 
   // ─── Bootstrap ───────────────────────────────────────────────────────────
   function init() {
@@ -927,6 +1073,7 @@
     // only to be bounced on install) is now handled by the resume flow above.
     if (data) {
       renderScripts(data);
+      refreshListing(true);
       return;
     }
 
