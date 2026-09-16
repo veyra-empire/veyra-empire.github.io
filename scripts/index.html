@@ -38,7 +38,7 @@
       <section id="state-loading">
         <h1>VEYRA EMPIRE</h1>
         <p class="subtitle">Script Archive</p>
-        <p class="loading-msg">Loading&hellip;</p>
+        <p class="loading-msg" id="loading-msg"><span id="loading-text">Loading</span><span class="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p>
       </section>
 
       <section id="state-oauth" hidden>
@@ -65,9 +65,11 @@
         <div class="denied-icon">&#x26D4;</div>
         <p id="denied-msg" class="denied-msg"></p>
         <div style="text-align:center;">
-          <a class="back-link" href="./" id="denied-back">&larr; Back to sign-in</a>
+          <a class="back-link" href="#" data-retry-signin>Try again</a>
           <span style="color: var(--muted); margin: 0 8px;">&middot;</span>
           <a class="back-link" href="#" data-switch-account>Try a different account</a>
+          <span style="color: var(--muted); margin: 0 8px;">&middot;</span>
+          <a class="back-link" href="./" id="denied-back">&larr; Back to sign-in</a>
         </div>
       </section>
 

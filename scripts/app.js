@@ -81,6 +81,7 @@
   var elSignin   = document.getElementById('signin-btn');
   var elSignout  = document.getElementById('signout-btn');
   var elNotice   = document.getElementById('listingNotice');
+  var elLoadingText = document.getElementById('loading-text');
   var elRecent     = document.getElementById('recentPanel');
   var elRecentList = document.getElementById('recentList');
   var elRecentMore = document.getElementById('recentMore');
@@ -124,7 +125,11 @@
     // needs a visible sign-in.
     'oauth-silent':    "Discord couldn't sign you in automatically. Click Sign in again to complete it.",
     'oauth-cancelled': "Sign-in was cancelled. Click Sign in to try again.",
-    'server':          "The archive server hit a temporary problem. Wait a moment and try again."
+    'server':          "The archive server hit a temporary problem. Wait a moment and try again.",
+    // The proxy can be slow to wake; a timeout is usually worth simply retrying.
+    'server-timeout':  "The archive server didn't answer in time. It sometimes needs a moment to wake up - try again.",
+    // Sign-in needs to remember a token across the trip to Discord.
+    'no-storage':      "Your browser is blocking site data for this page, which sign-in needs. Allow it (or leave private browsing) and try again."
   };
 
   function showDenied(reason) {
@@ -786,14 +791,25 @@
   // so it silently hands back whichever account the browser is logged into and
   // there is no way to pick a different one. prompt=consent brings back
   // Discord's authorization screen, which is where the account switcher lives.
-  function buildAuthorizeUrl(state, force) {
+  // Three genuinely different intents, so three modes rather than a boolean:
+  //   silent      - a background retry nobody asked for. prompt=none, which
+  //                 Discord answers only when the browser already holds a
+  //                 Discord session.
+  //   interactive - the member clicked. No prompt at all, so Discord redirects
+  //                 straight back for anyone who has already authorised the
+  //                 app and shows login or consent only when it must. Using
+  //                 the silent mode for a click is what made sign-in fail
+  //                 several times in a row before working.
+  //   consent     - "use a different account", which has to show the picker.
+  function buildAuthorizeUrl(state, mode) {
     return 'https://discord.com/oauth2/authorize' +
            '?response_type=code' +
            '&client_id='    + encodeURIComponent(CLIENT_ID) +
            '&scope='        + encodeURIComponent('identify guilds') +
            '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
            '&state='        + encodeURIComponent(state) +
-           '&prompt='       + (force ? 'consent' : 'none');
+           (mode === 'silent'  ? '&prompt=none'    :
+            mode === 'consent' ? '&prompt=consent' : '');
   }
 
   function randomState() {
@@ -805,16 +821,34 @@
     return s;
   }
 
-  function startSignIn(force) {
+  // Returns false when it could not even start, so callers can fall back
+  // instead of assuming the browser is on its way to Discord.
+  function startSignIn(mode) {
     var state = randomState();
-    sessionStorage.setItem(STATE_KEY, state);
-    location.href = buildAuthorizeUrl(state, force);
+    // The state token is the CSRF guard on the callback. If it cannot be
+    // stored, the round trip would come back and fail validation, so do not
+    // start one - say so instead, or let a silent caller fall through to its
+    // own fallback. Found the hard way: a context where sessionStorage threw
+    // left the member with no retry AND no message, because the throw was
+    // swallowed by the refresh promise.
+    try {
+      sessionStorage.setItem(STATE_KEY, state);
+    } catch (_) {
+      if (mode !== 'silent') showDenied('no-storage');
+      return false;
+    }
+    // Acknowledge the click before the browser leaves: the redirect can take a
+    // moment, and a page that sits there reads as a button that did nothing.
+    // The silent retry stays invisible - nobody asked for it.
+    if (mode !== 'silent') setLoadingStep('Taking you to Discord');
+    location.href = buildAuthorizeUrl(state, mode);
+    return true;
   }
 
   // ─── Sign-in / sign-out ──────────────────────────────────────────────────
   elSignin.addEventListener('click', function(e) {
     e.preventDefault();
-    startSignIn();
+    startSignIn('interactive');
   });
 
   elSignout.addEventListener('click', function(e) {
@@ -827,6 +861,19 @@
     location.replace(location.pathname);
   });
 
+  // Retry links (the denied screen). Interactive, so a member who could not be
+  // confirmed silently gets Discord's login or consent screen rather than the
+  // same silent refusal again.
+  Array.prototype.forEach.call(
+    document.querySelectorAll('[data-retry-signin]'),
+    function(el) {
+      el.addEventListener('click', function(e) {
+        e.preventDefault();
+        startSignIn('interactive');
+      });
+    }
+  );
+
   // "Switch account" links - sign-in landing, denied screen, and the footer.
   // These force Discord's authorization screen so a member sitting on the
   // wrong account can pick another one. Deliberately no local clearing:
@@ -838,10 +885,39 @@
     function(el) {
       el.addEventListener('click', function(e) {
         e.preventDefault();
-        startSignIn(true);
+        startSignIn('consent');
       });
     }
   );
+
+  // ─── Loading feedback ────────────────────────────────────────────────────
+  // Sign-in is one JSONP call from here but a lot of work at the other end:
+  // the proxy exchanges the code with Discord, fetches the member's guilds,
+  // reads the Tiers sheet, then builds the whole listing - which pulls
+  // manifest.json from GitHub whenever its 10-minute cache is cold. Several
+  // seconds is normal on a cold Apps Script instance, and a page showing only
+  // "Loading" for that long reads as broken.
+  //
+  // These messages describe what THIS page is doing or waiting for. The
+  // proxy's internal steps are not visible from here, and narrating them
+  // would be invention.
+  function setLoadingStep(text) {
+    if (elLoadingText) elLoadingText.textContent = text;
+    if (elLoading) show(elLoading);
+  }
+
+  function startLoadingProgress(initial) {
+    setLoadingStep(initial);
+    var timers = [
+      setTimeout(function() { setLoadingStep('Waiting for the archive server'); }, 4000),
+      setTimeout(function() { setLoadingStep('The server is waking up, this can take a moment'); }, 12000),
+      // The JSONP helper gives up at 30s; warn just before rather than after.
+      setTimeout(function() { setLoadingStep('Nearly at the time limit'); }, 25000)
+    ];
+    return function stop() {
+      for (var i = 0; i < timers.length; i++) clearTimeout(timers[i]);
+    };
+  }
 
   // ─── OAuth callback handler ──────────────────────────────────────────────
   function handleOauthCallback(code, state) {
@@ -853,9 +929,10 @@
       return;
     }
     clearQuery();
-    show(elLoading);
+    var stopProgress = startLoadingProgress('Signing you in');
     jsonp(PROXY_URL + '?api=oauth-exchange&code=' + encodeURIComponent(code))
       .then(function(body) {
+        stopProgress();
         if (body && !body.error && body.sid) {
           try { sessionStorage.removeItem(AUTO_KEY); } catch (_) { /* storage disabled */ }
           localStorage.setItem(CACHE_KEY, JSON.stringify(body));
@@ -879,15 +956,20 @@
             return;
           }
           lastRefresh = Date.now();
+          setLoadingStep('Loading the archive');
           renderScripts(body);
         } else {
           sessionStorage.removeItem(RESUME_KEY);
           showDenied((body && body.error) || 'oauth-error');
         }
       })
-      .catch(function() {
+      .catch(function(err) {
+        stopProgress();
         sessionStorage.removeItem(RESUME_KEY);
-        showDenied('oauth-error');
+        // Distinguish "it never answered" from "it said no": the first is
+        // worth retrying as-is, and saying so beats a generic failure.
+        var reason = (err && err.message === 'timeout') ? 'server-timeout' : 'oauth-error';
+        showDenied(reason);
       });
   }
 
@@ -1235,12 +1317,12 @@
             if (force && !tried) {
               autoSignInTried = true;
               try { sessionStorage.setItem(AUTO_KEY, '1'); } catch (_) { /* storage disabled */ }
-              startSignIn();
-              return;
+              if (startSignIn('silent')) return;
+              // Could not start it at all; fall through and say something.
             }
             showListingNotice('Your sign-in expired, so this list may be out of date.', {
               persist: true,
-              action: { label: 'Sign in again', onClick: function() { startSignIn(); } }
+              action: { label: 'Sign in again', onClick: function() { startSignIn('interactive'); } }
             });
           }
           return;
@@ -1344,7 +1426,7 @@
         return;
       }
       // Need a fresh sid first; handleOauthCallback picks the marker back up.
-      startSignIn();
+      startSignIn('interactive');
       return;
     }
 

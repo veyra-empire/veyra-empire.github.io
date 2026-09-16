@@ -1306,5 +1306,22 @@ button:hover, .install-btn:hover {
   padding: 30px 0;
   font-size: 0.95rem;
 }
+/* Animated ellipsis for waits that genuinely take seconds (the sign-in
+   exchange). Inline with the message rather than a spinner, so the text
+   stays the thing being read. */
+.dots i {
+  font-style: normal;
+  opacity: 0.25;
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+.dots i:nth-child(2) { animation-delay: 0.2s; }
+.dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot-pulse {
+  0%, 80%, 100% { opacity: 0.25; }
+  40%           { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dots i { animation: none; opacity: 0.7; }
+}
 
 [hidden] { display: none !important; }
