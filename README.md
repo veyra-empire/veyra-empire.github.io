@@ -47,6 +47,10 @@ both `Submitted by` and `Original author`, always both, since cross-author
 submissions are common and the two are often written differently even for the
 same person.
 
+If the session has expired, a page load retries sign-in silently once per tab
+and carries on with the cached list if Discord declines, so reloading is
+normally enough to get current data.
+
 Later visits render that stored copy immediately, then refresh the content
 lists in the background from `?api=listing` (on load, and on returning to a
 tab left more than five minutes). Changes appear in place, with a short

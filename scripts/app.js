@@ -35,6 +35,14 @@
   // sessionStorage so it is scoped to the tab doing the install and cannot
   // hijack an unrelated tab.
   var RESUME_KEY = 'veyra_resume_install';
+  // Set just before an automatic silent re-auth so the return leg knows the
+  // attempt was ours rather than something the member clicked. sessionStorage
+  // because it must survive the Discord round trip but not leak to other tabs.
+  var AUTO_KEY   = 'veyra_auto_signin';
+  // One automatic attempt per page load. Module scope, so a later reload is
+  // free to try again - that is the whole point - while this load cannot
+  // bounce round more than once.
+  var autoSignInTried = false;
 
   // ─── JSONP helper ────────────────────────────────────────────────────────
   // Apps Script /exec 302-redirects through googleusercontent.com and strips
@@ -849,6 +857,7 @@
     jsonp(PROXY_URL + '?api=oauth-exchange&code=' + encodeURIComponent(code))
       .then(function(body) {
         if (body && !body.error && body.sid) {
+          try { sessionStorage.removeItem(AUTO_KEY); } catch (_) { /* storage disabled */ }
           localStorage.setItem(CACHE_KEY, JSON.stringify(body));
           // Long-lived fingerprint marker - consumed by the auth bootstrap
           // inside requiresAuth scripts. Permanent until explicit sign-out.
@@ -1209,6 +1218,26 @@
         // fix, and still leave the cards alone.
         if (!body || body.error) {
           if (body && body.error === 'expired') {
+            // On load, go and get it rather than asking: prompt=none returns
+            // immediately and invisibly for anyone who still has a Discord
+            // session, which is most members, so a reload just works.
+            //
+            // Never from a tab-return refresh - navigating away from someone
+            // mid-read is precisely what this must not do - and never twice in
+            // a tab, because a member with no Discord session lands on
+            // discord.com/login rather than being returned here. If
+            // sessionStorage is unavailable the redirect still happens once
+            // and the return leg falls back to the denied screen, as it always
+            // did.
+            var tried = autoSignInTried;
+            try { tried = tried || sessionStorage.getItem(AUTO_KEY) === '1'; }
+            catch (_) { /* storage disabled */ }
+            if (force && !tried) {
+              autoSignInTried = true;
+              try { sessionStorage.setItem(AUTO_KEY, '1'); } catch (_) { /* storage disabled */ }
+              startSignIn();
+              return;
+            }
             showListingNotice('Your sign-in expired, so this list may be out of date.', {
               persist: true,
               action: { label: 'Sign in again', onClick: function() { startSignIn(); } }
@@ -1265,8 +1294,27 @@
     if (q.error) {
       clearQuery();
       sessionStorage.removeItem(RESUME_KEY);
-      showDenied(q.error === 'access_denied' ? 'oauth-cancelled' : 'oauth-silent');
-      return;
+      // Was this our own silent retry? Then Discord simply could not confirm
+      // the member without asking, which is a normal answer and none of their
+      // business: fall through to the cached render, where refreshListing's
+      // notice explains why the list may be stale. Only a sign-in the member
+      // actually asked for gets the denied screen.
+      var auto = false;
+      try {
+        auto = sessionStorage.getItem(AUTO_KEY) === '1';
+      } catch (_) { /* storage disabled; treat as a manual attempt */ }
+      // The marker deliberately STAYS until a sign-in succeeds. Discord does
+      // not always answer prompt=none with an error: a member with no Discord
+      // session in this browser (common - plenty of people only use the
+      // desktop app) is sent to discord.com/login instead, and never comes
+      // back. Retrying on the next load would catch them again the moment
+      // they hit Back, so one automatic attempt per tab is the limit.
+      if (auto) {
+        autoSignInTried = true;
+      } else {
+        showDenied(q.error === 'access_denied' ? 'oauth-cancelled' : 'oauth-silent');
+        return;
+      }
     }
 
     // Migrate any pre-existing sessionStorage entry from older builds.
