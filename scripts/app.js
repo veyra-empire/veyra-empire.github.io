@@ -39,6 +39,9 @@
   // attempt was ours rather than something the member clicked. sessionStorage
   // because it must survive the Discord round trip but not leak to other tabs.
   var AUTO_KEY   = 'veyra_auto_signin';
+  // Set when a sign-in the member CLICKED starts silently, so the callback can
+  // tell a refusal apart from a failure and ask Discord properly instead.
+  var CLICK_KEY  = 'veyra_click_signin';
   // One automatic attempt per page load. Module scope, so a later reload is
   // free to try again - that is the whole point - while this load cannot
   // bounce round more than once.
@@ -116,10 +119,12 @@
     'no-tier':         "You're in the guild, but you haven't been assigned a tier yet. Check with an officer on Discord to get registered.",
     'not-configured':  "The sign-in system isn't configured yet. Contact the admin.",
     'oauth-state':     "Sign-in failed: state token mismatch. Try again.",
-    'oauth-exchange':  "Sign-in failed. Try again, or contact an officer if it keeps happening.",
-    'oauth-identity':  "Sign-in failed. Try again, or contact an officer if it keeps happening.",
-    'oauth-guilds':    "Sign-in failed. Try again, or contact an officer if it keeps happening.",
-    'oauth-error':     "Sign-in failed. Try again, or contact an officer if it keeps happening.",
+    // Four distinct failures used to share one sentence, which made a report
+    // impossible to act on. Each now says which step gave up.
+    'oauth-exchange':  "Discord wouldn't accept the sign-in code. Try again - a code is only good for a moment.",
+    'oauth-identity':  "Discord didn't answer when the archive asked who you are. Try again.",
+    'oauth-guilds':    "Discord didn't answer when the archive checked your guild membership. Try again.",
+    'oauth-error':     "The archive server stumbled partway through signing you in. Trying again usually works - tell lmv if it keeps happening.",
     // Discord answered the silent (prompt=none) sign-in with an error rather
     // than a code. Normal when it can't confirm you without asking - it just
     // needs a visible sign-in.
@@ -791,25 +796,28 @@
   // so it silently hands back whichever account the browser is logged into and
   // there is no way to pick a different one. prompt=consent brings back
   // Discord's authorization screen, which is where the account switcher lives.
-  // Three genuinely different intents, so three modes rather than a boolean:
-  //   silent      - a background retry nobody asked for. prompt=none, which
-  //                 Discord answers only when the browser already holds a
-  //                 Discord session.
-  //   interactive - the member clicked. No prompt at all, so Discord redirects
-  //                 straight back for anyone who has already authorised the
-  //                 app and shows login or consent only when it must. Using
-  //                 the silent mode for a click is what made sign-in fail
-  //                 several times in a row before working.
-  //   consent     - "use a different account", which has to show the picker.
-  function buildAuthorizeUrl(state, mode) {
+  // Callers state WHY they are signing in; the prompt follows from that.
+  //
+  //   click    - the member asked. Start silent: Discord approves invisibly
+  //              when the browser already holds a session, which is the common
+  //              case and the one that used to prompt needlessly. A refusal is
+  //              escalated by the callback rather than reported.
+  //   escalate - that second attempt. No prompt at all, so Discord may show
+  //              login or consent. Sending only this was what prompted every
+  //              time; sending only `none` was what failed repeatedly.
+  //   auto     - an expired session on load, which nobody asked for. Silent,
+  //              and a refusal falls back to the notice.
+  //   switch   - "use another account", which must show the picker.
+  var SIGNIN_PROMPT = { click: 'none', escalate: '', auto: 'none', 'switch': 'consent' };
+
+  function buildAuthorizeUrl(state, prompt) {
     return 'https://discord.com/oauth2/authorize' +
            '?response_type=code' +
            '&client_id='    + encodeURIComponent(CLIENT_ID) +
            '&scope='        + encodeURIComponent('identify guilds') +
            '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
            '&state='        + encodeURIComponent(state) +
-           (mode === 'silent'  ? '&prompt=none'    :
-            mode === 'consent' ? '&prompt=consent' : '');
+           (prompt ? '&prompt=' + encodeURIComponent(prompt) : '');
   }
 
   function randomState() {
@@ -823,7 +831,9 @@
 
   // Returns false when it could not even start, so callers can fall back
   // instead of assuming the browser is on its way to Discord.
-  function startSignIn(mode) {
+  function startSignIn(intent) {
+    var prompt = SIGNIN_PROMPT[intent] || '';
+    var silent = (intent === 'click' || intent === 'auto');
     var state = randomState();
     // The state token is the CSRF guard on the callback. If it cannot be
     // stored, the round trip would come back and fail validation, so do not
@@ -833,22 +843,23 @@
     // swallowed by the refresh promise.
     try {
       sessionStorage.setItem(STATE_KEY, state);
+      if (intent === 'click') sessionStorage.setItem(CLICK_KEY, '1');
     } catch (_) {
-      if (mode !== 'silent') showDenied('no-storage');
+      if (intent !== 'auto') showDenied('no-storage');
       return false;
     }
-    // Acknowledge the click before the browser leaves: the redirect can take a
-    // moment, and a page that sits there reads as a button that did nothing.
-    // The silent retry stays invisible - nobody asked for it.
-    if (mode !== 'silent') setLoadingStep('Taking you to Discord');
-    location.href = buildAuthorizeUrl(state, mode);
+    // Acknowledge anything the member initiated before the browser leaves: the
+    // redirect can take a moment, and a page that sits there reads as a button
+    // that did nothing. The background retry stays invisible - nobody asked.
+    if (intent !== 'auto') setLoadingStep('Taking you to Discord');
+    location.href = buildAuthorizeUrl(state, prompt);
     return true;
   }
 
   // ─── Sign-in / sign-out ──────────────────────────────────────────────────
   elSignin.addEventListener('click', function(e) {
     e.preventDefault();
-    startSignIn('interactive');
+    startSignIn('click');
   });
 
   elSignout.addEventListener('click', function(e) {
@@ -869,7 +880,7 @@
     function(el) {
       el.addEventListener('click', function(e) {
         e.preventDefault();
-        startSignIn('interactive');
+        startSignIn('click');
       });
     }
   );
@@ -885,7 +896,7 @@
     function(el) {
       el.addEventListener('click', function(e) {
         e.preventDefault();
-        startSignIn('consent');
+        startSignIn('switch');
       });
     }
   );
@@ -901,6 +912,18 @@
   // These messages describe what THIS page is doing or waiting for. The
   // proxy's internal steps are not visible from here, and narrating them
   // would be invention.
+  // Prime the proxy's caches while the member reads the sign-in page and
+  // clicks. The Discord round trip then covers the GitHub manifest fetch and
+  // the Tiers sheet read, so the exchange lands on warm caches instead of
+  // paying for both while the member watches. Best effort: nothing on this
+  // page depends on it.
+  var warmSent = false;
+  function warmProxy() {
+    if (warmSent) return;
+    warmSent = true;
+    jsonp(PROXY_URL + '?api=warm').catch(function() { /* best effort */ });
+  }
+
   function setLoadingStep(text) {
     if (elLoadingText) elLoadingText.textContent = text;
     if (elLoading) show(elLoading);
@@ -934,7 +957,10 @@
       .then(function(body) {
         stopProgress();
         if (body && !body.error && body.sid) {
-          try { sessionStorage.removeItem(AUTO_KEY); } catch (_) { /* storage disabled */ }
+          try {
+            sessionStorage.removeItem(AUTO_KEY);
+            sessionStorage.removeItem(CLICK_KEY);
+          } catch (_) { /* storage disabled */ }
           localStorage.setItem(CACHE_KEY, JSON.stringify(body));
           // Long-lived fingerprint marker - consumed by the auth bootstrap
           // inside requiresAuth scripts. Permanent until explicit sign-out.
@@ -1317,12 +1343,12 @@
             if (force && !tried) {
               autoSignInTried = true;
               try { sessionStorage.setItem(AUTO_KEY, '1'); } catch (_) { /* storage disabled */ }
-              if (startSignIn('silent')) return;
+              if (startSignIn('auto')) return;
               // Could not start it at all; fall through and say something.
             }
             showListingNotice('Your sign-in expired, so this list may be out of date.', {
               persist: true,
-              action: { label: 'Sign in again', onClick: function() { startSignIn('interactive'); } }
+              action: { label: 'Sign in again', onClick: function() { startSignIn('click'); } }
             });
           }
           return;
@@ -1381,10 +1407,20 @@
       // business: fall through to the cached render, where refreshListing's
       // notice explains why the list may be stale. Only a sign-in the member
       // actually asked for gets the denied screen.
-      var auto = false;
+      var auto = false, clicked = false;
       try {
         auto = sessionStorage.getItem(AUTO_KEY) === '1';
+        clicked = sessionStorage.getItem(CLICK_KEY) === '1';
+        sessionStorage.removeItem(CLICK_KEY);
       } catch (_) { /* storage disabled; treat as a manual attempt */ }
+      // The member asked to sign in and Discord would not do it silently, so
+      // ask properly instead of reporting a failure they cannot act on. Once:
+      // the escalated attempt sets no marker, so a second refusal falls
+      // through to the screen below.
+      if (clicked) {
+        startSignIn('escalate');
+        return;
+      }
       // The marker deliberately STAYS until a sign-in succeeds. Discord does
       // not always answer prompt=none with an error: a member with no Discord
       // session in this browser (common - plenty of people only use the
@@ -1426,7 +1462,7 @@
         return;
       }
       // Need a fresh sid first; handleOauthCallback picks the marker back up.
-      startSignIn('interactive');
+      startSignIn('click');
       return;
     }
 
@@ -1442,6 +1478,7 @@
       return;
     }
 
+    warmProxy();
     show(elOauth);
   }
 
