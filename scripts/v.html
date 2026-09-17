@@ -22,8 +22,7 @@
   readable. Flow:
     1. bootstrap calls window.open(v.html?origin=X&nonce=N&mr=R)
     2. this page reads veyra_fingerprint from localStorage
-    3. JSONP to proxy apiVerifyFingerprint, forwarding the mr rank
-       so the tier check happens server-side
+    3. JSONP to the proxy to check it, forwarding the rank it was given
     4. postMessage result back to window.opener
     5. close
 

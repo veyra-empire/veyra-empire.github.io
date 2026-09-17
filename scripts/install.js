@@ -11,7 +11,7 @@
   // meant a Google login page for anyone without a Google session, plus
   // enough cross-origin hops that TM lost its same-tab install and stranded
   // an "intermediate step" tab. The forwarder presents a clean .user.js URL
-  // and uses the query form server-side. Source in veyra-empire-proxy/worker/.
+  // and uses the query form behind it.
   //
   // Stable URL only - never a *-scripts.veyra-empire.workers.dev preview,
   // which changes on every deploy.

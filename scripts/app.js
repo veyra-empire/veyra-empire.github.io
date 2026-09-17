@@ -2,8 +2,7 @@
   'use strict';
 
   // ─── CONFIG ──────────────────────────────────────────────────────────────
-  // Apps Script /exec URL (not secret - baked into every installed script's
-  // @updateURL). Only used for JSONP data calls + install button URLs.
+  // Apps Script /exec URL. Used for the JSONP data calls and install links.
   var PROXY_URL = 'https://script.google.com/macros/s/AKfycbzUHg1z18WmWFSyEsZStaK2kmax2JXnPzK4LrTyEitSFVBQ2u2vfFeO6wZhjWx58EJZ7w/exec';
 
   // Discord OAuth app (public values per Discord docs).
@@ -12,10 +11,9 @@
 
   var TIER_ORDER = ['probationary', 'member', 'tester', 'owner'];
 
-  // Flavorful display labels. Internal tier values (in the manifest, on
-  // the proxy, and in the Tiers sheet) stay as 'probationary' / 'member'
-  // / 'tester' / 'owner' - this map only affects what users see. Update
-  // the same map in submit.js / submit-resource.js if you tweak it.
+  // Flavorful display labels. The underlying values stay as 'probationary' /
+  // 'member' / 'tester' / 'owner'; this map only affects what users see.
+  // Update the same map in submit.js / submit-resource.js if you tweak it.
   var TIER_DISPLAY = {
     probationary: 'Probationary',
     member:       'Full Member',
@@ -902,21 +900,15 @@
   );
 
   // ─── Loading feedback ────────────────────────────────────────────────────
-  // Sign-in is one JSONP call from here but a lot of work at the other end:
-  // the proxy exchanges the code with Discord, fetches the member's guilds,
-  // reads the Tiers sheet, then builds the whole listing - which pulls
-  // manifest.json from GitHub whenever its 10-minute cache is cold. Several
-  // seconds is normal on a cold Apps Script instance, and a page showing only
-  // "Loading" for that long reads as broken.
+  // Sign-in is a single call from here, but one that regularly takes several
+  // seconds, and a page showing only "Loading" for that long reads as broken.
   //
-  // These messages describe what THIS page is doing or waiting for. The
-  // proxy's internal steps are not visible from here, and narrating them
-  // would be invention.
-  // Prime the proxy's caches while the member reads the sign-in page and
-  // clicks. The Discord round trip then covers the GitHub manifest fetch and
-  // the Tiers sheet read, so the exchange lands on warm caches instead of
-  // paying for both while the member watches. Best effort: nothing on this
-  // page depends on it.
+  // These messages say what THIS page is doing or waiting for. What happens
+  // at the other end is not visible from here, and narrating it would be
+  // invention.
+  // Ask the server to warm up while the member reads this page and clicks, so
+  // the sign-in call is not the thing that pays for it. Best effort: nothing
+  // on this page depends on it.
   var warmSent = false;
   function warmProxy() {
     if (warmSent) return;
@@ -962,8 +954,8 @@
             sessionStorage.removeItem(CLICK_KEY);
           } catch (_) { /* storage disabled */ }
           localStorage.setItem(CACHE_KEY, JSON.stringify(body));
-          // Long-lived fingerprint marker - consumed by the auth bootstrap
-          // inside requiresAuth scripts. Permanent until explicit sign-out.
+          // Long-lived marker, read by scripts that require sign-in.
+          // Permanent until an explicit sign-out.
           if (body.discordId && body.fingerprintSig && body.signedAt) {
             try {
               localStorage.setItem('veyra_fingerprint', JSON.stringify({
