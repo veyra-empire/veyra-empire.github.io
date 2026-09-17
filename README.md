@@ -12,6 +12,8 @@ This repo holds only the public landing UI.
 ```
 /
 ├── .nojekyll             ← disable Jekyll processing org-wide
+├── index.html            ← / redirects to /scripts/, carrying any query and hash
+├── 404.html              ← stray paths redirect there too; 404s INSIDE /scripts/ are shown
 ├── README.md
 └── scripts/              ← https://veyra-empire.github.io/scripts/
     ├── index.html        UI shell (loading / sign-in / denied / archive states)

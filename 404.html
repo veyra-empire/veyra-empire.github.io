@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VEYRA EMPIRE - page not found</title>
+  <meta name="robots" content="noindex">
+
+  <!-- Deliberately NO meta refresh. The redirect below has to be conditional
+       and a refresh cannot be, so adding one would send genuine archive 404s
+       to /scripts/ too - and loop forever on any day /scripts/ itself stops
+       resolving. -->
+
+  <style>
+    html { background: #0a0612; color: #f5e9d0; }
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; margin: 0; padding: 0 16px; text-align: center;
+    }
+    a { color: #f2c072; }
+    .muted { color: #a39580; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <p>
+    That page does not exist.<br>
+    <a href="/scripts/">Go to the VEYRA EMPIRE archive</a>
+    <br><span class="muted">If you followed a link from inside the archive, tell lmv.</span>
+  </p>
+
+  <script>
+    // A 404 under /scripts/ is a real missing page in the archive: show it,
+    // so a broken link surfaces instead of being papered over. This is also
+    // the loop guard - redirecting these would spin forever if /scripts/
+    // ever stopped resolving.
+    //
+    // Anything else is a stray address for this site (a trimmed URL, an old
+    // bookmark, a typo), so send it to the archive, query and hash included.
+    (function () {
+      if (location.pathname.indexOf('/scripts/') === 0) return;
+      location.replace('/scripts/' + location.search + location.hash);
+    })();
+  </script>
+</body>
+</html>
